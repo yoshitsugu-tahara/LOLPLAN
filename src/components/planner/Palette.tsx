@@ -17,6 +17,81 @@ import {
   WARDS,
 } from "./data";
 
+const FAV_KEY = "lolnote:champ-favorites";
+
+function loadFavs(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    return new Set(JSON.parse(localStorage.getItem(FAV_KEY) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveFavs(s: Set<string>) {
+  try {
+    localStorage.setItem(FAV_KEY, JSON.stringify([...s]));
+  } catch {
+    // localStorage 不可なら諦める（お気に入りが永続化されないだけ）
+  }
+}
+
+/** チャンピオン1マス。クリック/ドラッグで配置、右上の星でお気に入り切替 */
+function ChampCell({
+  c,
+  version,
+  isFav,
+  onToggleFav,
+  onPlace,
+}: {
+  c: Champion;
+  version: string;
+  isFav: boolean;
+  onToggleFav: (id: string) => void;
+  onPlace: (c: Champion) => void;
+}) {
+  return (
+    <div className="group relative aspect-square">
+      <button
+        title={c.name}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(
+            DND_MIME,
+            JSON.stringify({ kind: "champion", id: c.id, name: c.name }),
+          );
+          e.dataTransfer.effectAllowed = "copy";
+        }}
+        onClick={() => onPlace(c)}
+        className="block h-full w-full overflow-hidden rounded-md border-2 border-transparent transition hover:border-sky-400"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={championIcon(version, c.id)}
+          alt={c.name}
+          loading="lazy"
+          draggable={false}
+          className="h-full w-full object-cover"
+        />
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFav(c.id);
+        }}
+        title={isFav ? "お気に入り解除" : "お気に入りに追加"}
+        className={`absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-black/55 text-[11px] leading-none transition ${
+          isFav
+            ? "text-yellow-400 opacity-100"
+            : "text-white opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        {isFav ? "★" : "☆"}
+      </button>
+    </div>
+  );
+}
+
 function TokenRow({
   title,
   items,
@@ -74,12 +149,23 @@ export default function Palette({
 }) {
   const [champions, setChampions] = useState<Champion[]>([]);
   const [query, setQuery] = useState("");
+  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavs());
 
   useEffect(() => {
     getChampions()
       .then(setChampions)
       .catch(() => setChampions([]));
   }, []);
+
+  const toggleFav = (id: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      saveFavs(next);
+      return next;
+    });
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -89,6 +175,12 @@ export default function Palette({
         c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
     );
   }, [champions, query]);
+
+  const favChamps = useMemo(
+    () => champions.filter((c) => favorites.has(c.id)),
+    [champions, favorites],
+  );
+  const showFavSection = !query.trim() && favChamps.length > 0;
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-950">
@@ -127,38 +219,50 @@ export default function Palette({
             読み込み中…
           </p>
         ) : (
-          <div className="grid grid-cols-5 gap-1">
-            {filtered.map((c) => (
-              <button
-                key={c.id}
-                title={c.name}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData(
-                    DND_MIME,
-                    JSON.stringify({
-                      kind: "champion",
-                      id: c.id,
-                      name: c.name,
-                    }),
-                  );
-                  e.dataTransfer.effectAllowed = "copy";
-                }}
-                onClick={() => onPlaceChampion(c)}
-                className="aspect-square overflow-hidden rounded-md border-2 border-transparent transition hover:border-sky-400"
-                style={{ borderColor: "transparent" }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={championIcon(version, c.id)}
-                  alt={c.name}
-                  loading="lazy"
-                  draggable={false}
-                  className="h-full w-full object-cover"
-                />
-              </button>
-            ))}
-          </div>
+          <>
+            {showFavSection && (
+              <div className="mb-3">
+                <h3 className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wider text-yellow-500/80">
+                  ★ お気に入り
+                </h3>
+                <div className="grid grid-cols-5 gap-1">
+                  {favChamps.map((c) => (
+                    <ChampCell
+                      key={c.id}
+                      c={c}
+                      version={version}
+                      isFav
+                      onToggleFav={toggleFav}
+                      onPlace={onPlaceChampion}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {showFavSection && (
+              <h3 className="mb-1.5 px-1 text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                すべて
+              </h3>
+            )}
+            {filtered.length === 0 ? (
+              <p className="px-1 py-4 text-center text-xs text-zinc-500">
+                該当なし
+              </p>
+            ) : (
+              <div className="grid grid-cols-5 gap-1">
+                {filtered.map((c) => (
+                  <ChampCell
+                    key={c.id}
+                    c={c}
+                    version={version}
+                    isFav={favorites.has(c.id)}
+                    onToggleFav={toggleFav}
+                    onPlace={onPlaceChampion}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
