@@ -5,8 +5,9 @@ import { MapBlock } from "./MapBlock";
 export const schema = BlockNoteSchema.create({
   blockSpecs: {
     ...defaultBlockSpecs,
-    video: VideoBlock,
-    map: MapBlock,
+    // BlockNote 0.51 の createReactBlockSpec は「specを返すファクトリ」を返すため呼び出す
+    video: VideoBlock(),
+    map: MapBlock(),
   },
 });
 
