@@ -213,7 +213,7 @@ export default function Palette({
       </div>
 
       {/* チャンピオングリッド */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-2">
+      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-2">
         {champions.length === 0 ? (
           <p className="px-1 py-4 text-center text-xs text-zinc-500">
             読み込み中…

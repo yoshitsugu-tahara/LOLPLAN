@@ -17,3 +17,12 @@ body {
     ui-sans-serif, system-ui, "Hiragino Kaku Gothic ProN", "Noto Sans JP",
     Meiryo, sans-serif;
 }
+
+/* スクロールは効かせつつスクロールバーだけ隠す */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE / 旧Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome / Safari */
+}
