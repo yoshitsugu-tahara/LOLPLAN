@@ -86,7 +86,7 @@ export default function Editor({ note }: { note: Note }) {
   return (
     <BlockNoteView
       editor={editor}
-      theme="light"
+      theme="dark"
       slashMenu={false}
       onChange={handleChange}
     >

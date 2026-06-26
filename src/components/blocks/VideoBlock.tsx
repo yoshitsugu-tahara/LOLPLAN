@@ -83,7 +83,7 @@ export const VideoBlock = createReactBlockSpec(
             </div>
             {editor.isEditable && (
               <button
-                className="mt-1 text-xs text-zinc-400 hover:text-zinc-600"
+                className="mt-1 text-xs text-zinc-400 hover:text-zinc-200"
                 onClick={() =>
                   editor.updateBlock(block, {
                     type: "video",
@@ -100,7 +100,7 @@ export const VideoBlock = createReactBlockSpec(
 
       if (!editor.isEditable) {
         return (
-          <div className="my-1 rounded-lg border border-dashed border-zinc-300 p-4 text-sm text-zinc-400">
+          <div className="my-1 rounded-lg border border-dashed border-white/15 p-4 text-sm text-zinc-500">
             動画が設定されていません
           </div>
         );
@@ -115,10 +115,10 @@ export const VideoBlock = createReactBlockSpec(
 
       return (
         <div
-          className="my-1 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4"
+          className="my-1 rounded-lg border border-dashed border-white/15 bg-white/5 p-4"
           data-content-type="video"
         >
-          <div className="mb-2 text-sm font-medium text-zinc-600">
+          <div className="mb-2 text-sm font-medium text-zinc-300">
             🎬 動画を埋め込む（YouTube / Twitch）
           </div>
           <div className="flex gap-2">
@@ -133,11 +133,11 @@ export const VideoBlock = createReactBlockSpec(
                 }
               }}
               placeholder="https://www.youtube.com/watch?v=..."
-              className="flex-1 rounded border border-zinc-300 px-2 py-1 text-sm outline-none focus:border-blue-400"
+              className="flex-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-sky-400"
             />
             <button
               onClick={submit}
-              className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+              className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
             >
               埋め込む
             </button>

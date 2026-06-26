@@ -79,22 +79,22 @@ export default function AppShell() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full bg-zinc-950 text-zinc-100">
       {/* サイドバー */}
-      <aside className="flex w-64 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50">
+      <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900">
         <div className="flex items-center justify-between px-4 py-3">
-          <span className="text-lg font-bold text-zinc-800">lolnote</span>
+          <span className="text-lg font-bold text-white">lolnote</span>
           <button
             onClick={createNote}
             title="新規ノート"
-            className="rounded bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700"
+            className="rounded bg-sky-500 px-2 py-1 text-sm font-medium text-white hover:bg-sky-400"
           >
             ＋ 新規
           </button>
         </div>
         <Link
           href="/planner"
-          className="mx-3 mb-2 flex items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
         >
           🗺️ <span>SRプランナー</span>
         </Link>
@@ -110,15 +110,15 @@ export default function AppShell() {
               onClick={() => setSelectedId(n.id)}
               className={`group flex cursor-pointer items-center justify-between px-4 py-2 ${
                 n.id === selectedId
-                  ? "bg-blue-100"
-                  : "hover:bg-zinc-100"
+                  ? "bg-sky-500/15"
+                  : "hover:bg-white/5"
               }`}
             >
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-zinc-800">
+                <div className="truncate text-sm font-medium text-zinc-100">
                   {n.title || "無題のノート"}
                 </div>
-                <div className="text-xs text-zinc-400">
+                <div className="text-xs text-zinc-500">
                   {formatDate(n.updatedAt)}
                 </div>
               </div>
@@ -127,7 +127,7 @@ export default function AppShell() {
                   e.stopPropagation();
                   deleteNote(n.id);
                 }}
-                className="ml-2 shrink-0 text-zinc-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
+                className="ml-2 shrink-0 text-zinc-500 opacity-0 hover:text-red-400 group-hover:opacity-100"
                 title="削除"
               >
                 ✕
@@ -146,7 +146,7 @@ export default function AppShell() {
                 value={selected.title}
                 onChange={(e) => updateTitle(e.target.value)}
                 placeholder="タイトル"
-                className="w-full bg-transparent text-3xl font-bold text-zinc-900 outline-none placeholder:text-zinc-300"
+                className="w-full bg-transparent text-3xl font-bold text-white outline-none placeholder:text-zinc-600"
               />
             </div>
             <div className="flex-1 overflow-y-auto pb-32">
@@ -156,12 +156,12 @@ export default function AppShell() {
             </div>
           </>
         ) : (
-          <div className="flex flex-1 items-center justify-center text-zinc-400">
+          <div className="flex flex-1 items-center justify-center text-zinc-500">
             <div className="text-center">
               <p className="mb-3">ノートを選択するか、新規作成してください</p>
               <button
                 onClick={createNote}
-                className="rounded bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+                className="rounded bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-400"
               >
                 ＋ 新しいノート
               </button>

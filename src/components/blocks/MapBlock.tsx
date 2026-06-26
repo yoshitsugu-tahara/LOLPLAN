@@ -34,7 +34,7 @@ export const MapBlock = createReactBlockSpec(
         <div className="my-1 w-full" data-content-type="map">
           <button
             onClick={() => mapId && openMap(mapId)}
-            className="group relative block w-full overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50 text-left transition hover:border-blue-400"
+            className="group relative block w-full overflow-hidden rounded-lg border border-white/10 bg-white/5 text-left transition hover:border-sky-400"
           >
             {map?.preview ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -44,7 +44,7 @@ export const MapBlock = createReactBlockSpec(
                 className="max-h-[420px] w-full object-contain"
               />
             ) : (
-              <div className="flex h-40 flex-col items-center justify-center gap-1 text-zinc-400">
+              <div className="flex h-40 flex-col items-center justify-center gap-1 text-zinc-500">
                 <span className="text-2xl">🗺️</span>
                 <span className="text-sm">クリックしてマップに書き込む</span>
               </div>

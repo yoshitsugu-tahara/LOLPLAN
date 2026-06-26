@@ -49,6 +49,7 @@ export default function MapEditorModal({
   const handleMount = useCallback(
     (editor: TLEditor) => {
       editorRef.current = editor;
+      editor.user.updateUserPreferences({ colorScheme: "dark" });
       db.maps.get(mapId).then((m) => {
         if (m?.snapshot) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -104,14 +105,14 @@ export default function MapEditorModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/40 p-4 sm:p-8">
-      <div className="flex flex-1 flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2">
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4 sm:p-8">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-zinc-900 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-700">🗺️ マップ注釈</span>
+            <span className="font-medium text-zinc-200">🗺️ マップ注釈</span>
             <button
               onClick={handlePickImage}
-              className="rounded border border-zinc-300 px-3 py-1 text-sm text-zinc-700 hover:bg-zinc-100"
+              className="rounded border border-white/15 px-3 py-1 text-sm text-zinc-200 hover:bg-white/10"
             >
               ＋ マップ画像を追加
             </button>
@@ -126,13 +127,13 @@ export default function MapEditorModal({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="rounded px-3 py-1 text-sm text-zinc-500 hover:bg-zinc-100"
+              className="rounded px-3 py-1 text-sm text-zinc-400 hover:bg-white/10"
             >
               破棄して閉じる
             </button>
             <button
               onClick={handleSaveAndClose}
-              className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+              className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
             >
               保存して閉じる
             </button>
