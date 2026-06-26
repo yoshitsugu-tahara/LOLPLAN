@@ -141,7 +141,7 @@ export default function AppShell() {
       <main className="flex min-w-0 flex-1 flex-col">
         {selected ? (
           <>
-            <div className="mx-auto w-full max-w-3xl px-12 pt-10">
+            <div className="mx-auto w-full max-w-3xl px-12 pt-10 pb-5">
               <input
                 value={selected.title}
                 onChange={(e) => updateTitle(e.target.value)}
