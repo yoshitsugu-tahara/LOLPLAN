@@ -268,6 +268,7 @@ export default function NoteSidebar({
       // それ以外の余白では「セクションを作成」を出す。
       onContextMenu={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         setMenu({
           x: e.clientX,
           y: e.clientY,
