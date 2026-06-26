@@ -66,9 +66,37 @@ export const PINGS: PaletteToken[] = [
   { id: "mk-vision", label: "視界が欲しい", icon: "👁️", color: "#22d3ee", size: 34 },
 ];
 
+// ミニオン（ウェーブ管理の勉強用）。チームごとに別アイコン。
+const MINION_TYPES = [
+  { type: "melee", label: "近接" },
+  { type: "caster", label: "遠隔" },
+  { type: "cannon", label: "砲台" },
+  { type: "super", label: "スーパー" },
+] as const;
+const MINION_SIZE = 30;
+
+export const MINIONS: PaletteToken[] = (["blue", "red"] as Team[]).flatMap(
+  (team) =>
+    MINION_TYPES.map((m) => ({
+      id: `minion-${team}-${m.type}`,
+      label: `${m.label}ミニオン（${team === "blue" ? "青" : "赤"}）`,
+      icon: `/icons/minion-${team}-${m.type}.png`,
+      color: TEAM_COLORS[team],
+      size: MINION_SIZE,
+    })),
+);
+
+/** 現在のチームのミニオン4種を、近接→遠隔→砲台→スーパーの順で返す */
+export function teamMinions(team: Team): PaletteToken[] {
+  return MINION_TYPES.map((m) => ALL_TOKENS[`minion-${team}-${m.type}`]);
+}
+
 /** id から PaletteToken を引くための一覧（ドロップ時の解決に使う） */
 export const ALL_TOKENS: Record<string, PaletteToken> = Object.fromEntries(
-  [...WARDS, ...OBJECTIVES, ...NUMBERS, ...PINGS].map((t) => [t.id, t]),
+  [...WARDS, ...OBJECTIVES, ...MINIONS, ...NUMBERS, ...PINGS].map((t) => [
+    t.id,
+    t,
+  ]),
 );
 
 /**

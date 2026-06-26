@@ -220,7 +220,12 @@ export default function PlannerBoard({
         props: {
           w: size,
           h: size,
-          kind: t.id.startsWith("obj") ? "objective" : "ward",
+          // ミニオンはポートレートなので champion 同様 cover で円に敷き詰める
+          kind: t.id.startsWith("minion")
+            ? "champion"
+            : t.id.startsWith("obj")
+              ? "objective"
+              : "ward",
           src: t.icon,
           color: t.color,
           label: "",
