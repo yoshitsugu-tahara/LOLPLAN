@@ -1,22 +1,10 @@
 "use client";
 
-import "tldraw/tldraw.css";
-
 import { useCallback, useRef } from "react";
-import {
-  createShapeId,
-  type Editor as TLEditor,
-  getSnapshot,
-  loadSnapshot,
-  Tldraw,
-  type TLAssetStore,
-} from "tldraw";
+import { type Editor as TLEditor, type TLAssetStore } from "tldraw";
 
 import { db } from "@/lib/db";
-import { MAP_IMAGE, MAP_SIZE } from "./planner/data";
-import { type TokenShape, TokenShapeUtil } from "./planner/TokenShape";
-
-const shapeUtils = [TokenShapeUtil];
+import PlannerBoard from "./planner/PlannerBoard";
 
 function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -28,8 +16,8 @@ function fileToDataUrl(file: Blob): Promise<string> {
 }
 
 /**
- * 画像を IndexedDB に残すため、アセットを data URL として保存する。
- * （tldraw のデフォルトは blob URL で、リロードすると消えてしまう）
+ * 過去にアップロードした画像（data URL アセット）を解決するためのストア。
+ * 新しい SR プランナー方式では画像アップロードはしないが、旧データの表示用に残す。
  */
 const assetStore: TLAssetStore = {
   async upload(_asset, file) {
@@ -49,127 +37,61 @@ export default function MapEditorModal({
   onClose: () => void;
 }) {
   const editorRef = useRef<TLEditor | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleMount = useCallback(
-    (editor: TLEditor) => {
-      editorRef.current = editor;
-      editor.user.updateUserPreferences({ colorScheme: "dark" });
-      db.maps.get(mapId).then((m) => {
-        if (m?.snapshot) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          loadSnapshot(editor.store, m.snapshot as any);
-        }
-        // 中身が無ければ SR マップを背景として最初から表示する
-        if (editor.getCurrentPageShapeIds().size === 0) {
-          editor.createShape<TokenShape>({
-            id: createShapeId("srmap"),
-            type: "token",
-            x: 0,
-            y: 0,
-            isLocked: true,
-            props: {
-              w: MAP_SIZE,
-              h: MAP_SIZE,
-              kind: "map",
-              src: MAP_IMAGE,
-              color: "#000000",
-              label: "",
-            },
-          });
-        }
-        editor.zoomToFit();
-      });
+  const load = useCallback(async () => {
+    const m = await db.maps.get(mapId);
+    return m?.snapshot ?? null;
+  }, [mapId]);
+
+  const onChange = useCallback(
+    (snapshot: { document: unknown }) => {
+      db.maps.update(mapId, { snapshot, updatedAt: Date.now() });
     },
     [mapId],
   );
 
-  const save = useCallback(async () => {
+  // 閉じる時にノート内サムネ用のプレビューを生成（チャンピオン等のリモート画像が
+  // 含まれると toImage が失敗することがあるが、その場合は黙って諦める）
+  const handleClose = async () => {
     const editor = editorRef.current;
-    if (!editor) return;
-    const snapshot = getSnapshot(editor.store);
-
-    let preview: string | null = null;
-    const ids = Array.from(editor.getCurrentPageShapeIds());
-    if (ids.length) {
+    if (editor) {
       try {
-        const result = await editor.toImage(ids, {
-          format: "png",
-          background: true,
-          padding: 16,
-          scale: 1,
-        });
-        preview = await fileToDataUrl(result.blob);
+        const ids = Array.from(editor.getCurrentPageShapeIds());
+        if (ids.length) {
+          const result = await editor.toImage(ids, {
+            format: "png",
+            background: true,
+            padding: 16,
+            scale: 0.5,
+          });
+          const preview = await fileToDataUrl(result.blob);
+          await db.maps.update(mapId, { preview, updatedAt: Date.now() });
+        }
       } catch {
-        // プレビュー生成失敗は無視（スナップショットは保存済み）
+        // プレビュー生成失敗は無視（スナップショットは自動保存済み）
       }
     }
-
-    await db.maps.update(mapId, { snapshot, preview, updatedAt: Date.now() });
-  }, [mapId]);
-
-  const handleSaveAndClose = async () => {
-    await save();
     onClose();
-  };
-
-  const handlePickImage = () => fileInputRef.current?.click();
-
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const editor = editorRef.current;
-    e.target.value = "";
-    if (!file || !editor) return;
-    await editor.putExternalContent({
-      type: "files",
-      files: [file],
-      point: editor.getViewportPageBounds().center,
-      ignoreParent: false,
-    });
   };
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4 sm:p-8">
       <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-zinc-900 shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-zinc-200">🗺️ マップ注釈</span>
-            <button
-              onClick={handlePickImage}
-              className="rounded border border-white/15 px-3 py-1 text-sm text-zinc-200 hover:bg-white/10"
-            >
-              ＋ マップ画像を追加
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFile}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="rounded px-3 py-1 text-sm text-zinc-400 hover:bg-white/10"
-            >
-              破棄して閉じる
-            </button>
-            <button
-              onClick={handleSaveAndClose}
-              className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
-            >
-              保存して閉じる
-            </button>
-          </div>
+          <span className="font-medium text-zinc-200">🗺️ マップ注釈</span>
+          <button
+            onClick={handleClose}
+            className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
+          >
+            閉じる
+          </button>
         </div>
-        <div className="relative flex-1">
-          <Tldraw
-            assets={assetStore}
-            shapeUtils={shapeUtils}
-            onMount={handleMount}
-          />
-        </div>
+        <PlannerBoard
+          load={load}
+          onChange={onChange}
+          onEditor={(e) => (editorRef.current = e)}
+          assets={assetStore}
+        />
       </div>
     </div>
   );
