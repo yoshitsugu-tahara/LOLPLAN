@@ -14,11 +14,6 @@ const MapEditorModal = dynamic(() => import("./MapEditorModal"), {
   ssr: false,
 });
 
-function formatDate(ts: number) {
-  const d = new Date(ts);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
 export default function AppShell() {
   const [mounted, setMounted] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -83,24 +78,30 @@ export default function AppShell() {
       {/* サイドバー */}
       <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900">
         <div className="flex items-center justify-between px-4 py-3">
-          <span className="text-lg font-bold text-white">lolnote</span>
+          <span className="text-base font-bold tracking-tight text-white">
+            lolnote
+          </span>
           <button
             onClick={createNote}
             title="新規ノート"
-            className="rounded bg-sky-500 px-2 py-1 text-sm font-medium text-white hover:bg-sky-400"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-lg text-zinc-400 transition hover:bg-white/10 hover:text-white"
           >
-            ＋ 新規
+            ＋
           </button>
         </div>
         <Link
           href="/planner"
-          className="mx-3 mb-2 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+          className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
         >
           🗺️ <span>SRプランナー</span>
         </Link>
-        <div className="flex-1 overflow-y-auto">
+
+        <div className="mb-1 mt-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
+          ノート
+        </div>
+        <div className="no-scrollbar flex-1 overflow-y-auto px-2">
           {notes?.length === 0 && (
-            <p className="px-4 py-6 text-center text-sm text-zinc-400">
+            <p className="px-2 py-4 text-sm text-zinc-600">
               まだノートがありません
             </p>
           )}
@@ -108,26 +109,35 @@ export default function AppShell() {
             <div
               key={n.id}
               onClick={() => setSelectedId(n.id)}
-              className={`group flex cursor-pointer items-center justify-between px-4 py-2 ${
+              className={`group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition ${
                 n.id === selectedId
-                  ? "bg-sky-500/15"
-                  : "hover:bg-white/5"
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-300 hover:bg-white/5"
               }`}
             >
-              <div className="min-w-0">
-                <div className="truncate text-sm font-medium text-zinc-100">
-                  {n.title || "無題のノート"}
-                </div>
-                <div className="text-xs text-zinc-500">
-                  {formatDate(n.updatedAt)}
-                </div>
-              </div>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="shrink-0 text-zinc-500"
+              >
+                <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+              </svg>
+              <span className="min-w-0 flex-1 truncate text-sm">
+                {n.title || "無題のノート"}
+              </span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteNote(n.id);
                 }}
-                className="ml-2 shrink-0 text-zinc-500 opacity-0 hover:text-red-400 group-hover:opacity-100"
+                className="shrink-0 text-zinc-500 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
                 title="削除"
               >
                 ✕
@@ -141,12 +151,12 @@ export default function AppShell() {
       <main className="flex min-w-0 flex-1 flex-col">
         {selected ? (
           <>
-            <div className="mx-auto w-full max-w-3xl px-12 pt-10 pb-5">
+            <div className="mx-auto w-full max-w-3xl px-[54px] pt-16 pb-4">
               <input
                 value={selected.title}
                 onChange={(e) => updateTitle(e.target.value)}
-                placeholder="タイトル"
-                className="w-full bg-transparent text-3xl font-bold text-white outline-none placeholder:text-zinc-600"
+                placeholder="無題"
+                className="w-full bg-transparent text-4xl font-bold tracking-tight text-white outline-none placeholder:text-zinc-700"
               />
             </div>
             <div className="flex-1 overflow-y-auto pb-32">
