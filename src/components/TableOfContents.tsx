@@ -50,20 +50,22 @@ export default function TableOfContents({ content }: { content: unknown }) {
   };
 
   return (
-    <nav className="mb-2 max-h-52 overflow-y-auto border-l-2 border-white/10 pl-3">
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
+    <nav className="mt-6 max-h-60 overflow-y-auto border-l border-white/10 pl-4">
+      <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
         目次
       </div>
-      {headings.map((h) => (
-        <button
-          key={h.id}
-          onClick={() => scrollTo(h.id)}
-          style={{ paddingLeft: (h.level - minLevel) * 14 }}
-          className="block w-full truncate py-0.5 text-left text-sm text-zinc-400 transition hover:text-white"
-        >
-          {h.text}
-        </button>
-      ))}
+      <div className="space-y-0.5">
+        {headings.map((h) => (
+          <button
+            key={h.id}
+            onClick={() => scrollTo(h.id)}
+            style={{ marginLeft: (h.level - minLevel) * 16 }}
+            className="block max-w-full truncate rounded px-2 py-1 text-left text-sm leading-relaxed text-zinc-400 transition hover:bg-white/5 hover:text-white"
+          >
+            {h.text}
+          </button>
+        ))}
+      </div>
     </nav>
   );
 }

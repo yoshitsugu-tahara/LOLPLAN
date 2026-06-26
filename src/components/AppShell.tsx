@@ -128,12 +128,12 @@ export default function AppShell() {
         )}
         {selected ? (
           <>
-            <div className="mx-auto w-full max-w-3xl px-[54px] pt-16 pb-4">
+            <div className="mx-auto w-full max-w-3xl px-[54px] pt-16 pb-8">
               <input
                 value={titleDraft}
                 onChange={(e) => updateTitle(e.target.value)}
                 placeholder="無題"
-                className="w-full bg-transparent text-4xl font-bold tracking-tight text-white outline-none placeholder:text-zinc-700"
+                className="w-full bg-transparent text-4xl font-bold leading-tight tracking-tight text-white outline-none placeholder:text-zinc-700"
               />
               <TableOfContents content={selected.content} />
             </div>
