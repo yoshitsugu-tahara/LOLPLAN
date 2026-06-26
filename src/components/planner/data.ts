@@ -27,31 +27,33 @@ export const DRAW_COLORS: { value: string; hex: string }[] = [
 export interface PaletteToken {
   id: string;
   label: string;
-  emoji: string; // 絵文字 or 1文字（http以外はそのまま描画）
+  icon: string; // 画像URL（/icons/... or http）または絵文字
   color: string;
   size?: number;
 }
 
+// ワード = Data Dragon のアイテムアイコン、オブジェクト = Community Dragon の
+// ミニマップアイコンを public/icons/ に取り込んだもの。
 export const WARDS: PaletteToken[] = [
-  { id: "ward-stealth", label: "ステルスワード", emoji: "👁️", color: "#22c55e" },
-  { id: "ward-control", label: "コントロールワード", emoji: "👁️", color: "#ec4899" },
-  { id: "ward-farsight", label: "ファーサイト", emoji: "🔭", color: "#38bdf8" },
+  { id: "ward-stealth", label: "ステルスワード", icon: "/icons/ward-stealth.png", color: "#22c55e", size: 36 },
+  { id: "ward-control", label: "コントロールワード", icon: "/icons/ward-control.png", color: "#ec4899", size: 36 },
+  { id: "ward-farsight", label: "ファーサイト", icon: "/icons/ward-farsight.png", color: "#38bdf8", size: 36 },
 ];
 
 export const OBJECTIVES: PaletteToken[] = [
-  { id: "obj-dragon", label: "ドラゴン", emoji: "🐉", color: "#f97316", size: 40 },
-  { id: "obj-baron", label: "バロン", emoji: "B", color: "#a855f7", size: 40 },
-  { id: "obj-herald", label: "ヘラルド", emoji: "H", color: "#6366f1", size: 40 },
-  { id: "obj-grubs", label: "ヴォイドグラブ", emoji: "🪱", color: "#84cc16", size: 36 },
-  { id: "obj-scuttle", label: "スカトル", emoji: "🦀", color: "#06b6d4", size: 36 },
+  { id: "obj-dragon", label: "ドラゴン", icon: "/icons/obj-dragon.png", color: "#f97316", size: 40 },
+  { id: "obj-baron", label: "バロン", icon: "/icons/obj-baron.png", color: "#a855f7", size: 40 },
+  { id: "obj-herald", label: "ヘラルド", icon: "/icons/obj-herald.png", color: "#6366f1", size: 40 },
+  { id: "obj-grubs", label: "ヴォイドグラブ", icon: "/icons/obj-grubs.png", color: "#84cc16", size: 36 },
+  { id: "obj-scuttle", label: "スカトル", icon: "/icons/obj-scuttle.png", color: "#06b6d4", size: 36 },
 ];
 
 export const MARKERS: PaletteToken[] = [
-  { id: "mk-danger", label: "危険", emoji: "⚠️", color: "#ef4444", size: 34 },
-  { id: "mk-target", label: "ターゲット", emoji: "🎯", color: "#ef4444", size: 34 },
-  { id: "mk-star", label: "重要", emoji: "⭐", color: "#facc15", size: 34 },
-  { id: "mk-flag", label: "目標", emoji: "🚩", color: "#22c55e", size: 34 },
-  { id: "mk-x", label: "回避", emoji: "❌", color: "#f87171", size: 34 },
+  { id: "mk-danger", label: "危険", icon: "⚠️", color: "#ef4444", size: 34 },
+  { id: "mk-target", label: "ターゲット", icon: "🎯", color: "#ef4444", size: 34 },
+  { id: "mk-star", label: "重要", icon: "⭐", color: "#facc15", size: 34 },
+  { id: "mk-flag", label: "目標", icon: "🚩", color: "#22c55e", size: 34 },
+  { id: "mk-x", label: "回避", icon: "❌", color: "#f87171", size: 34 },
 ];
 
 /** id から PaletteToken を引くための一覧（ドロップ時の解決に使う） */

@@ -118,12 +118,18 @@ export class TokenShapeUtil extends ShapeUtil<TokenShape> {
           }}
         >
           {isImg ? (
+            // チャンピオンは円形に敷き詰め(cover)、ワード/オブジェクトのアイコンは
+            // 全体が見えるよう contain で少し小さく中央に置く
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={src}
               alt={label}
               draggable={false}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={
+                kind === "champion"
+                  ? { width: "100%", height: "100%", objectFit: "cover" }
+                  : { width: "82%", height: "82%", objectFit: "contain" }
+              }
             />
           ) : (
             <span style={{ fontSize: Math.round(h * 0.55), lineHeight: 1 }}>

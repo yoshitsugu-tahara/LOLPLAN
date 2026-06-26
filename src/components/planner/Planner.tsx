@@ -230,7 +230,7 @@ export default function Planner({ planId }: { planId: string }) {
           w: size,
           h: size,
           kind: t.id.startsWith("obj") ? "objective" : "ward",
-          src: t.emoji,
+          src: t.icon,
           color: t.color,
           label: "",
         },

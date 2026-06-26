@@ -120,13 +120,23 @@ function TokenRow({
               e.dataTransfer.effectAllowed = "copy";
             }}
             onClick={() => onPlace(t)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition hover:scale-105"
+            className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border text-lg transition hover:scale-105"
             style={{
               borderColor: t.color,
               background: `${t.color}1f`,
             }}
           >
-            <span className="pointer-events-none select-none">{t.emoji}</span>
+            {t.icon.startsWith("/") || t.icon.startsWith("http") ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={t.icon}
+                alt={t.label}
+                draggable={false}
+                className="pointer-events-none h-7 w-7 object-contain"
+              />
+            ) : (
+              <span className="pointer-events-none select-none">{t.icon}</span>
+            )}
           </button>
         ))}
       </div>
