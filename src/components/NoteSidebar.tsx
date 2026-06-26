@@ -261,7 +261,20 @@ export default function NoteSidebar({
   };
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900">
+    <aside
+      className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900"
+      // サイドバー内の右クリックはブラウザ標準メニューを無効化。
+      // ノート/セクションは各自のメニューを stopPropagation で優先し、
+      // それ以外の余白では「セクションを作成」を出す。
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setMenu({
+          x: e.clientX,
+          y: e.clientY,
+          items: [{ label: "＋ セクションを作成", onClick: createSection }],
+        });
+      }}
+    >
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-base font-bold tracking-tight text-white">
           lolnote
@@ -304,17 +317,9 @@ export default function NoteSidebar({
         🗺️ <span>SRプランナー</span>
       </Link>
 
-      {/* ノート＋セクション。空きスペース右クリックでセクション作成 */}
+      {/* ノート＋セクション。余白の右クリック（aside側）でセクション作成 */}
       <div
         className="no-scrollbar mt-2 flex-1 overflow-y-auto px-2 pb-4"
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setMenu({
-            x: e.clientX,
-            y: e.clientY,
-            items: [{ label: "＋ セクションを作成", onClick: createSection }],
-          });
-        }}
         onDragOver={(e) =>
           e.dataTransfer.types.includes(NOTE_MIME) && e.preventDefault()
         }
@@ -385,14 +390,6 @@ export default function NoteSidebar({
             {notesOf(sec.id).map(renderNote)}
           </div>
         ))}
-
-        {/* セクション追加（右クリックメニューと同じ。常に見える導線） */}
-        <button
-          onClick={createSection}
-          className="mt-3 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-500 transition hover:bg-white/5 hover:text-zinc-300"
-        >
-          ＋ <span>セクションを追加</span>
-        </button>
       </div>
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
