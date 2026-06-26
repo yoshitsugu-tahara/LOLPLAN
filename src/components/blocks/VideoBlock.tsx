@@ -3,73 +3,72 @@
 import { createReactBlockSpec } from "@blocknote/react";
 import { useState } from "react";
 
-/** YouTube / Twitch のURLを埋め込み用URLに変換する */
-function toEmbedUrl(raw: string): string | null {
-  let u: URL;
-  try {
-    u = new URL(raw.trim());
-  } catch {
-    return null;
-  }
-  const host = u.hostname.replace(/^www\./, "");
-  const parent =
-    typeof window !== "undefined" ? window.location.hostname : "localhost";
-
-  // YouTube
-  if (host === "youtu.be") {
-    const id = u.pathname.slice(1);
-    return id ? `https://www.youtube.com/embed/${id}` : null;
-  }
-  if (host === "youtube.com" || host === "m.youtube.com") {
-    if (u.pathname.startsWith("/embed/")) return raw;
-    if (u.pathname.startsWith("/shorts/")) {
-      return `https://www.youtube.com/embed/${u.pathname.split("/")[2]}`;
-    }
-    const id = u.searchParams.get("v");
-    return id ? `https://www.youtube.com/embed/${id}` : null;
-  }
-
-  // Twitch
-  if (host === "twitch.tv") {
-    const vid = u.pathname.match(/\/videos\/(\d+)/);
-    if (vid) {
-      return `https://player.twitch.tv/?video=${vid[1]}&parent=${parent}&autoplay=false`;
-    }
-    const clip = u.pathname.match(/\/clip\/([^/]+)/);
-    if (clip) {
-      return `https://clips.twitch.tv/embed?clip=${clip[1]}&parent=${parent}&autoplay=false`;
-    }
-    const channel = u.pathname.split("/")[1];
-    if (channel) {
-      return `https://player.twitch.tv/?channel=${channel}&parent=${parent}&autoplay=false`;
-    }
-  }
-  if (host === "clips.twitch.tv") {
-    const slug = u.pathname.slice(1);
-    if (slug) {
-      return `https://clips.twitch.tv/embed?clip=${slug}&parent=${parent}&autoplay=false`;
-    }
-  }
-
-  return null;
-}
+import { toEmbedUrl } from "./video-url";
 
 export const VideoBlock = createReactBlockSpec(
   {
     type: "video",
     propSchema: {
       url: { default: "" },
+      // "ask" = 埋め込むかリンクのままか選ばせる / "embed" = 埋め込み表示
+      mode: { default: "embed", values: ["ask", "embed"] as const },
     },
     content: "none",
   },
   {
     render: ({ block, editor }) => {
       const url = block.props.url;
+      const mode = block.props.mode;
       const embed = url ? toEmbedUrl(url) : null;
 
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [draft, setDraft] = useState("");
 
+      // 1) ペースト直後：埋め込むかリンクのままか選ぶ
+      if (mode === "ask" && url) {
+        const keepAsLink = () => {
+          editor.replaceBlocks(
+            [block],
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            [
+              {
+                type: "paragraph",
+                content: [{ type: "link", href: url, content: url }],
+              },
+            ] as any,
+          );
+        };
+        return (
+          <div
+            className="my-1 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-white/5 p-2"
+            data-content-type="video"
+          >
+            <span className="text-base">🎬</span>
+            <span className="min-w-0 flex-1 truncate text-sm text-zinc-400">
+              {url}
+            </span>
+            <button
+              onClick={() =>
+                editor.updateBlock(block, {
+                  type: "video",
+                  props: { url, mode: "embed" },
+                })
+              }
+              className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
+            >
+              埋め込む
+            </button>
+            <button
+              onClick={keepAsLink}
+              className="rounded px-3 py-1 text-sm text-zinc-300 hover:bg-white/10"
+            >
+              リンクのまま
+            </button>
+          </div>
+        );
+      }
+
+      // 2) 埋め込み表示
       if (embed) {
         return (
           <div className="my-1 w-full" data-content-type="video">
@@ -87,7 +86,7 @@ export const VideoBlock = createReactBlockSpec(
                 onClick={() =>
                   editor.updateBlock(block, {
                     type: "video",
-                    props: { url: "" },
+                    props: { url: "", mode: "embed" },
                   })
                 }
               >
@@ -106,10 +105,14 @@ export const VideoBlock = createReactBlockSpec(
         );
       }
 
+      // 3) スラッシュメニューから挿入した直後：URL入力
       const submit = () => {
         const ok = toEmbedUrl(draft);
         if (ok) {
-          editor.updateBlock(block, { type: "video", props: { url: draft } });
+          editor.updateBlock(block, {
+            type: "video",
+            props: { url: draft, mode: "embed" },
+          });
         }
       };
 

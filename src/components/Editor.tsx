@@ -16,6 +16,7 @@ import { useEffect, useRef } from "react";
 
 import { db, type Note } from "@/lib/db";
 import { schema, type AppEditor } from "./blocks/schema";
+import { toEmbedUrl } from "./blocks/video-url";
 
 function mediaItems(editor: AppEditor): DefaultReactSuggestionItem[] {
   return [
@@ -63,6 +64,26 @@ export default function Editor({ note }: { note: Note }) {
         ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (note.content as any)
         : undefined,
+    // YouTube / Twitch のURLを貼ったら「埋め込む？」を選ばせる動画ブロックにする
+    pasteHandler: ({ event, editor: ed, defaultPasteHandler }) => {
+      const text = event.clipboardData?.getData("text/plain")?.trim();
+      if (text && !/\s/.test(text) && toEmbedUrl(text)) {
+        const current = ed.getTextCursorPosition().block;
+        const blockDef = {
+          type: "video" as const,
+          props: { url: text, mode: "ask" as const },
+        };
+        const isEmpty =
+          Array.isArray(current.content) && current.content.length === 0;
+        if (isEmpty) {
+          ed.replaceBlocks([current], [blockDef]);
+        } else {
+          ed.insertBlocks([blockDef], current, "after");
+        }
+        return true;
+      }
+      return defaultPasteHandler();
+    },
   });
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
