@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 import { OPEN_MAP_EVENT } from "./blocks/MapBlock";
 import NoteSidebar from "./NoteSidebar";
+import TableOfContents from "./TableOfContents";
 
 const Editor = dynamic(() => import("./Editor"), { ssr: false });
 const MapEditorModal = dynamic(() => import("./MapEditorModal"), {
@@ -134,6 +135,7 @@ export default function AppShell() {
                 placeholder="無題"
                 className="w-full bg-transparent text-4xl font-bold tracking-tight text-white outline-none placeholder:text-zinc-700"
               />
+              <TableOfContents content={selected.content} />
             </div>
             <div className="flex-1 overflow-y-auto pb-32">
               <div className="mx-auto w-full max-w-3xl">
