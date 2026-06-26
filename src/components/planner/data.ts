@@ -48,17 +48,27 @@ export const OBJECTIVES: PaletteToken[] = [
   { id: "obj-scuttle", label: "スカトル", icon: "/icons/obj-scuttle.png", color: "#06b6d4", size: 36 },
 ];
 
-export const MARKERS: PaletteToken[] = [
-  { id: "mk-danger", label: "危険", icon: "⚠️", color: "#ef4444", size: 34 },
-  { id: "mk-target", label: "ターゲット", icon: "🎯", color: "#ef4444", size: 34 },
-  { id: "mk-star", label: "重要", icon: "⭐", color: "#facc15", size: 34 },
-  { id: "mk-flag", label: "目標", icon: "🚩", color: "#22c55e", size: 34 },
-  { id: "mk-x", label: "回避", icon: "❌", color: "#f87171", size: 34 },
+// 番号マーカー：ジャングル動線やローテーションの「順番」を示す用
+export const NUMBERS: PaletteToken[] = [1, 2, 3, 4, 5].map((n) => ({
+  id: `num-${n}`,
+  label: `${n} 番目`,
+  icon: String(n),
+  color: "#38bdf8",
+  size: 32,
+}));
+
+// ピン：ゲーム内の合図に対応。見ただけで意図が伝わるように用途をラベルに明記
+export const PINGS: PaletteToken[] = [
+  { id: "mk-danger", label: "危険（敵がいる）", icon: "⚠️", color: "#ef4444", size: 34 },
+  { id: "mk-mia", label: "警戒・ミア（敵が見えない）", icon: "❓", color: "#f59e0b", size: 34 },
+  { id: "mk-fight", label: "集合・仕掛ける", icon: "⚔️", color: "#a855f7", size: 34 },
+  { id: "mk-retreat", label: "退避（引く）", icon: "🛑", color: "#64748b", size: 34 },
+  { id: "mk-vision", label: "視界が欲しい", icon: "👁️", color: "#22d3ee", size: 34 },
 ];
 
 /** id から PaletteToken を引くための一覧（ドロップ時の解決に使う） */
 export const ALL_TOKENS: Record<string, PaletteToken> = Object.fromEntries(
-  [...WARDS, ...OBJECTIVES, ...MARKERS].map((t) => [t.id, t]),
+  [...WARDS, ...OBJECTIVES, ...NUMBERS, ...PINGS].map((t) => [t.id, t]),
 );
 
 /**

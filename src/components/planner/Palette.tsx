@@ -9,9 +9,10 @@ import {
 } from "@/lib/ddragon";
 import {
   DND_MIME,
-  MARKERS,
+  NUMBERS,
   OBJECTIVES,
   type PaletteToken,
+  PINGS,
   type Team,
   TEAM_COLORS,
   WARDS,
@@ -280,7 +281,8 @@ export default function Palette({
       <div className="space-y-3 border-t border-white/10 p-3">
         <TokenRow title="ワード" items={WARDS} onPlace={onPlaceToken} />
         <TokenRow title="オブジェクト" items={OBJECTIVES} onPlace={onPlaceToken} />
-        <TokenRow title="マーカー" items={MARKERS} onPlace={onPlaceToken} />
+        <TokenRow title="番号（順番）" items={NUMBERS} onPlace={onPlaceToken} />
+        <TokenRow title="ピン（合図）" items={PINGS} onPlace={onPlaceToken} />
       </div>
     </aside>
   );

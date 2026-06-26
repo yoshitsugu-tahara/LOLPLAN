@@ -132,7 +132,14 @@ export class TokenShapeUtil extends ShapeUtil<TokenShape> {
               }
             />
           ) : (
-            <span style={{ fontSize: Math.round(h * 0.55), lineHeight: 1 }}>
+            <span
+              style={{
+                fontSize: Math.round(h * 0.55),
+                lineHeight: 1,
+                fontWeight: 800,
+                color: "#fff",
+              }}
+            >
               {src}
             </span>
           )}
