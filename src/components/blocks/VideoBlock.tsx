@@ -1,7 +1,7 @@
 "use client";
 
 import { createReactBlockSpec } from "@blocknote/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { toEmbedUrl, youtubeId, youtubeThumb } from "./video-url";
 
@@ -20,11 +20,37 @@ export const VideoBlock = createReactBlockSpec(
       const url = block.props.url;
       const mode = block.props.mode;
       const embed = url ? toEmbedUrl(url) : null;
+      const ytId = youtubeId(url);
 
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [draft, setDraft] = useState("");
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [playing, setPlaying] = useState(false);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [title, setTitle] = useState("");
+
+      // 動画タイトルを YouTube oEmbed から取得（キャプション表示用）
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      useEffect(() => {
+        if (!ytId) {
+          setTitle("");
+          return;
+        }
+        let cancelled = false;
+        fetch(
+          `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`,
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => {
+            if (!cancelled && j?.title) setTitle(j.title as string);
+          })
+          .catch(() => {
+            // 取得失敗時はタイトル無しで表示
+          });
+        return () => {
+          cancelled = true;
+        };
+      }, [ytId]);
 
       // 1) ペースト直後：埋め込むかリンクのままか選ぶ
       if (mode === "ask" && url) {
@@ -72,7 +98,6 @@ export const VideoBlock = createReactBlockSpec(
 
       // 2) 埋め込み表示
       if (embed) {
-        const ytId = youtubeId(url);
         return (
           <div className="my-1 w-full" data-content-type="video">
             <div className="relative w-full overflow-hidden rounded-lg bg-black aspect-video">
@@ -106,6 +131,22 @@ export const VideoBlock = createReactBlockSpec(
                 />
               )}
             </div>
+
+            {/* 動画タイトル（YouTube）。クリックで YouTube を開く */}
+            {ytId && title && (
+              <a
+                href={`https://www.youtube.com/watch?v=${ytId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1.5 flex items-center gap-1.5 text-sm text-zinc-300 transition hover:text-white"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="#ef4444">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+                <span className="truncate">{title}</span>
+              </a>
+            )}
+
             {editor.isEditable && (
               <button
                 className="mt-1 text-xs text-zinc-400 hover:text-zinc-200"
