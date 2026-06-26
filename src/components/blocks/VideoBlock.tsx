@@ -3,7 +3,7 @@
 import { createReactBlockSpec } from "@blocknote/react";
 import { useState } from "react";
 
-import { toEmbedUrl } from "./video-url";
+import { toEmbedUrl, youtubeId, youtubeThumb } from "./video-url";
 
 export const VideoBlock = createReactBlockSpec(
   {
@@ -23,6 +23,8 @@ export const VideoBlock = createReactBlockSpec(
 
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [draft, setDraft] = useState("");
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [playing, setPlaying] = useState(false);
 
       // 1) ペースト直後：埋め込むかリンクのままか選ぶ
       if (mode === "ask" && url) {
@@ -70,15 +72,39 @@ export const VideoBlock = createReactBlockSpec(
 
       // 2) 埋め込み表示
       if (embed) {
+        const ytId = youtubeId(url);
         return (
           <div className="my-1 w-full" data-content-type="video">
             <div className="relative w-full overflow-hidden rounded-lg bg-black aspect-video">
-              <iframe
-                src={embed}
-                className="absolute inset-0 h-full w-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+              {ytId && !playing ? (
+                // クリックするまではクリーンなサムネ＋再生ボタンだけ表示
+                <button
+                  onClick={() => setPlaying(true)}
+                  className="group absolute inset-0 h-full w-full"
+                  title="再生"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={youtubeThumb(ytId)}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/10 transition group-hover:bg-black/25">
+                    <span className="flex h-12 w-[68px] items-center justify-center rounded-xl bg-red-600 shadow-lg transition group-hover:bg-red-500">
+                      <svg width="26" height="26" viewBox="0 0 24 24" fill="white">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <iframe
+                  src={ytId ? `${embed}&autoplay=1` : embed}
+                  className="absolute inset-0 h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              )}
             </div>
             {editor.isEditable && (
               <button

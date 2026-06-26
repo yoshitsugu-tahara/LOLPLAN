@@ -1,3 +1,35 @@
+// 関連動画(同チャンネルのみ)・注釈オフ・ブランディング控えめで、
+// 動画に重なるYouTube側のUIをできるだけ減らす。
+const YT_PARAMS = "rel=0&modestbranding=1&iv_load_policy=3&color=white";
+
+function ytEmbed(id: string): string {
+  // youtube-nocookie でトラッキングも抑えつつクリーンに表示
+  return `https://www.youtube-nocookie.com/embed/${id}?${YT_PARAMS}`;
+}
+
+/** YouTube 動画IDを取り出す（YouTube以外は null） */
+export function youtubeId(raw: string): string | null {
+  try {
+    const u = new URL(raw.trim());
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") return u.pathname.slice(1) || null;
+    if (host === "youtube.com" || host === "m.youtube.com" || host === "youtube-nocookie.com") {
+      if (u.pathname.startsWith("/embed/") || u.pathname.startsWith("/shorts/")) {
+        return u.pathname.split("/")[2] || null;
+      }
+      return u.searchParams.get("v");
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+/** クリックで再生する自前ポスター用のサムネURL */
+export function youtubeThumb(id: string): string {
+  return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+}
+
 /** YouTube / Twitch のURLを埋め込み用URLに変換する。対応外なら null */
 export function toEmbedUrl(raw: string): string | null {
   let u: URL;
@@ -13,15 +45,19 @@ export function toEmbedUrl(raw: string): string | null {
   // YouTube
   if (host === "youtu.be") {
     const id = u.pathname.slice(1);
-    return id ? `https://www.youtube.com/embed/${id}` : null;
+    return id ? ytEmbed(id) : null;
   }
-  if (host === "youtube.com" || host === "m.youtube.com") {
-    if (u.pathname.startsWith("/embed/")) return raw;
+  if (host === "youtube.com" || host === "m.youtube.com" || host === "youtube-nocookie.com") {
+    if (u.pathname.startsWith("/embed/")) {
+      const id = u.pathname.split("/")[2];
+      return id ? ytEmbed(id) : null;
+    }
     if (u.pathname.startsWith("/shorts/")) {
-      return `https://www.youtube.com/embed/${u.pathname.split("/")[2]}`;
+      const id = u.pathname.split("/")[2];
+      return id ? ytEmbed(id) : null;
     }
     const id = u.searchParams.get("v");
-    return id ? `https://www.youtube.com/embed/${id}` : null;
+    return id ? ytEmbed(id) : null;
   }
 
   // Twitch
