@@ -11,12 +11,41 @@ import {
   SuggestionMenuController,
   useCreateBlockNote,
 } from "@blocknote/react";
+import { flip, offset, shift, size } from "@floating-ui/react";
 import { nanoid } from "nanoid";
 import { useEffect, useRef } from "react";
 
 import { db, type Note } from "@/lib/db";
 import { schema, type AppEditor } from "./blocks/schema";
 import { toEmbedUrl } from "./blocks/video-url";
+
+// スラッシュメニューを、下に余白が足りなければ上にフリップさせる。
+// （デフォルトは下に出して高さを潰すので、画面下部で見切れていた）
+const slashMenuFloatingOptions = {
+  useFloatingOptions: {
+    placement: "bottom-start" as const,
+    middleware: [
+      offset(4),
+      flip({ fallbackPlacements: ["top-start"], padding: 8 }),
+      shift({ padding: 8 }),
+      size({
+        padding: 8,
+        apply({
+          availableHeight,
+          elements,
+        }: {
+          availableHeight: number;
+          elements: { floating: HTMLElement };
+        }) {
+          elements.floating.style.maxHeight = `${Math.max(
+            160,
+            availableHeight,
+          )}px`;
+        },
+      }),
+    ],
+  },
+};
 
 function mediaItems(editor: AppEditor): DefaultReactSuggestionItem[] {
   return [
@@ -113,6 +142,7 @@ export default function Editor({ note }: { note: Note }) {
     >
       <SuggestionMenuController
         triggerCharacter="/"
+        floatingUIOptions={slashMenuFloatingOptions}
         getItems={async (query) =>
           filterSuggestionItems(
             [...getDefaultReactSlashMenuItems(editor), ...mediaItems(editor)],
