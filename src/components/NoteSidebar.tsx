@@ -385,6 +385,14 @@ export default function NoteSidebar({
             {notesOf(sec.id).map(renderNote)}
           </div>
         ))}
+
+        {/* セクション追加（右クリックメニューと同じ。常に見える導線） */}
+        <button
+          onClick={createSection}
+          className="mt-3 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-500 transition hover:bg-white/5 hover:text-zinc-300"
+        >
+          ＋ <span>セクションを追加</span>
+        </button>
       </div>
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
