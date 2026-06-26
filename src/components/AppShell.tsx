@@ -19,6 +19,9 @@ export default function AppShell() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mapId, setMapId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // タイトル入力はローカルstateで持つ（DB(liveQuery)を value にすると
+  // 日本語IMEの変換中に値が裏で書き換わって文字化け・増殖する）
+  const [titleDraft, setTitleDraft] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -42,6 +45,13 @@ export default function AppShell() {
     () => (selectedId ? db.notes.get(selectedId) : undefined),
     [selectedId],
   );
+
+  // 別のノートに切り替わった時だけタイトル入力欄を同期する。
+  // （同じノートの本文編集などで selected が更新されても上書きしない）
+  useEffect(() => {
+    setTitleDraft(selected?.title ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.id]);
 
   // マップブロックからの「開いて」イベントを受け取る
   useEffect(() => {
@@ -81,6 +91,7 @@ export default function AppShell() {
 
   const updateTitle = (title: string) => {
     if (!selectedId) return;
+    setTitleDraft(title);
     db.notes.update(selectedId, { title, updatedAt: Date.now() });
   };
 
@@ -212,7 +223,7 @@ export default function AppShell() {
           <>
             <div className="mx-auto w-full max-w-3xl px-[54px] pt-16 pb-4">
               <input
-                value={selected.title}
+                value={titleDraft}
                 onChange={(e) => updateTitle(e.target.value)}
                 placeholder="無題"
                 className="w-full bg-transparent text-4xl font-bold tracking-tight text-white outline-none placeholder:text-zinc-700"
