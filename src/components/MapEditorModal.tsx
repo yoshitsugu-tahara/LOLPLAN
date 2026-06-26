@@ -4,6 +4,7 @@ import "tldraw/tldraw.css";
 
 import { useCallback, useRef } from "react";
 import {
+  createShapeId,
   type Editor as TLEditor,
   getSnapshot,
   loadSnapshot,
@@ -12,6 +13,10 @@ import {
 } from "tldraw";
 
 import { db } from "@/lib/db";
+import { MAP_IMAGE, MAP_SIZE } from "./planner/data";
+import { type TokenShape, TokenShapeUtil } from "./planner/TokenShape";
+
+const shapeUtils = [TokenShapeUtil];
 
 function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -55,6 +60,25 @@ export default function MapEditorModal({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           loadSnapshot(editor.store, m.snapshot as any);
         }
+        // 中身が無ければ SR マップを背景として最初から表示する
+        if (editor.getCurrentPageShapeIds().size === 0) {
+          editor.createShape<TokenShape>({
+            id: createShapeId("srmap"),
+            type: "token",
+            x: 0,
+            y: 0,
+            isLocked: true,
+            props: {
+              w: MAP_SIZE,
+              h: MAP_SIZE,
+              kind: "map",
+              src: MAP_IMAGE,
+              color: "#000000",
+              label: "",
+            },
+          });
+        }
+        editor.zoomToFit();
       });
     },
     [mapId],
@@ -140,7 +164,11 @@ export default function MapEditorModal({
           </div>
         </div>
         <div className="relative flex-1">
-          <Tldraw assets={assetStore} onMount={handleMount} />
+          <Tldraw
+            assets={assetStore}
+            shapeUtils={shapeUtils}
+            onMount={handleMount}
+          />
         </div>
       </div>
     </div>
