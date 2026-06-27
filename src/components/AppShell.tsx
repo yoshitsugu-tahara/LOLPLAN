@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/db";
 import { OPEN_MAP_EVENT } from "./blocks/MapBlock";
 import NoteSidebar from "./NoteSidebar";
+import SearchModal from "./SearchModal";
 import TableOfContents from "./TableOfContents";
 
 const Editor = dynamic(() => import("./Editor"), { ssr: false });
@@ -20,6 +21,7 @@ export default function AppShell() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mapId, setMapId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
   // タイトル入力はローカルstateで持つ（DB(liveQuery)を value にすると
   // 日本語IMEの変換中に値が裏で書き換わって文字化け・増殖する）
   const [titleDraft, setTitleDraft] = useState("");
@@ -49,6 +51,18 @@ export default function AppShell() {
     setTitleDraft(selected?.title ?? "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
+
+  // Ctrl/Cmd+F で検索を開く（ブラウザ標準の検索は無効化）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // マップブロックからの「開いて」イベントを受け取る
   useEffect(() => {
@@ -99,6 +113,7 @@ export default function AppShell() {
           onCreateNote={createNote}
           onDeleteNote={deleteNote}
           onToggleSidebar={toggleSidebar}
+          onOpenSearch={() => setSearchOpen(true)}
         />
       )}
 
@@ -160,6 +175,13 @@ export default function AppShell() {
 
       {mapId && (
         <MapEditorModal mapId={mapId} onClose={() => setMapId(null)} />
+      )}
+
+      {searchOpen && (
+        <SearchModal
+          onClose={() => setSearchOpen(false)}
+          onSelect={setSelectedId}
+        />
       )}
     </div>
   );

@@ -86,12 +86,14 @@ export default function NoteSidebar({
   onCreateNote,
   onDeleteNote,
   onToggleSidebar,
+  onOpenSearch,
 }: {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onCreateNote: () => void;
   onDeleteNote: (id: string) => void;
   onToggleSidebar: () => void;
+  onOpenSearch: () => void;
 }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const sections = useLiveQuery(
@@ -310,6 +312,29 @@ export default function NoteSidebar({
           </button>
         </div>
       </div>
+
+      <button
+        onClick={onOpenSearch}
+        className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"
+      >
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          className="shrink-0"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <span className="flex-1 text-left">検索</span>
+        <kbd className="rounded bg-white/10 px-1 text-[10px] text-zinc-500">
+          Ctrl F
+        </kbd>
+      </button>
 
       <Link
         href="/planner"
