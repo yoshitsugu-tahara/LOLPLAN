@@ -9,6 +9,9 @@ export function useImage(src: string | undefined) {
       return;
     }
     const img = new window.Image();
+    // CORS対応で読み込むと canvas が汚染されず stage.toDataURL（プレビュー）が通る。
+    // ddragon は ACAO:* を返し、同一オリジン画像にも無害。
+    img.crossOrigin = "anonymous";
     let active = true;
     img.onload = () => active && setImage(img);
     img.onerror = () => active && setImage(undefined);
