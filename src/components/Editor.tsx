@@ -18,6 +18,8 @@ import { useEffect, useRef } from "react";
 import { db, type Note } from "@/lib/db";
 import { schema, type AppEditor } from "./blocks/schema";
 import { toEmbedUrl } from "./blocks/video-url";
+import FindBar from "./FindBar";
+import { searchPlugin } from "./searchPlugin";
 
 // スラッシュメニューを、下に余白が足りなければ上にフリップさせる。
 // （デフォルトは下に出して高さを潰すので、画面下部で見切れていた）
@@ -85,7 +87,15 @@ function mediaItems(editor: AppEditor): DefaultReactSuggestionItem[] {
   ];
 }
 
-export default function Editor({ note }: { note: Note }) {
+export default function Editor({
+  note,
+  findOpen,
+  onFindClose,
+}: {
+  note: Note;
+  findOpen: boolean;
+  onFindClose: () => void;
+}) {
   const editor = useCreateBlockNote({
     schema,
     initialContent:
@@ -117,10 +127,13 @@ export default function Editor({ note }: { note: Note }) {
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ノート内検索（Ctrl+F）用のハイライトプラグインを登録
   useEffect(() => {
+    editor._tiptapEditor.registerPlugin(searchPlugin());
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleChange = () => {
@@ -134,22 +147,27 @@ export default function Editor({ note }: { note: Note }) {
   };
 
   return (
-    <BlockNoteView
-      editor={editor}
-      theme="dark"
-      slashMenu={false}
-      onChange={handleChange}
-    >
-      <SuggestionMenuController
-        triggerCharacter="/"
-        floatingUIOptions={slashMenuFloatingOptions}
-        getItems={async (query) =>
-          filterSuggestionItems(
-            [...getDefaultReactSlashMenuItems(editor), ...mediaItems(editor)],
-            query,
-          )
-        }
-      />
-    </BlockNoteView>
+    <>
+      {findOpen && (
+        <FindBar view={editor.prosemirrorView} onClose={onFindClose} />
+      )}
+      <BlockNoteView
+        editor={editor}
+        theme="dark"
+        slashMenu={false}
+        onChange={handleChange}
+      >
+        <SuggestionMenuController
+          triggerCharacter="/"
+          floatingUIOptions={slashMenuFloatingOptions}
+          getItems={async (query) =>
+            filterSuggestionItems(
+              [...getDefaultReactSlashMenuItems(editor), ...mediaItems(editor)],
+              query,
+            )
+          }
+        />
+      </BlockNoteView>
+    </>
   );
 }

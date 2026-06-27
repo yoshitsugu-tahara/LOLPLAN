@@ -330,9 +330,9 @@ export default function NoteSidebar({
           <circle cx="11" cy="11" r="7" />
           <path d="m21 21-4.3-4.3" />
         </svg>
-        <span className="flex-1 text-left">検索</span>
+        <span className="flex-1 text-left">ノート検索</span>
         <kbd className="rounded bg-white/10 px-1 text-[10px] text-zinc-500">
-          Ctrl F
+          Ctrl ⇧ F
         </kbd>
       </button>
 

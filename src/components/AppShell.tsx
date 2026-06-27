@@ -22,6 +22,7 @@ export default function AppShell() {
   const [mapId, setMapId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
   // タイトル入力はローカルstateで持つ（DB(liveQuery)を value にすると
   // 日本語IMEの変換中に値が裏で書き換わって文字化け・増殖する）
   const [titleDraft, setTitleDraft] = useState("");
@@ -52,17 +53,21 @@ export default function AppShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected?.id]);
 
-  // Ctrl/Cmd+F で検索を開く（ブラウザ標準の検索は無効化）
+  // Ctrl+F = ノート内検索 / Ctrl+Shift+F = 全ノート横断検索（標準の検索は無効化）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        setSearchOpen(true);
+        if (e.shiftKey) setSearchOpen(true);
+        else setFindOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // ノートを切り替えたらノート内検索は閉じる
+  useEffect(() => setFindOpen(false), [selectedId]);
 
   // マップブロックからの「開いて」イベントを受け取る
   useEffect(() => {
@@ -154,7 +159,12 @@ export default function AppShell() {
             </div>
             <div className="flex-1 overflow-y-auto pb-32">
               <div className="mx-auto w-full max-w-3xl">
-                <Editor key={selected.id} note={selected} />
+                <Editor
+                  key={selected.id}
+                  note={selected}
+                  findOpen={findOpen}
+                  onFindClose={() => setFindOpen(false)}
+                />
               </div>
             </div>
           </>

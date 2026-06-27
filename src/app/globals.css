@@ -29,6 +29,16 @@ body {
   display: none; /* Chrome / Safari */
 }
 
+/* ノート内検索（Ctrl+F）のハイライト */
+.lol-find {
+  background-color: rgba(250, 204, 21, 0.32);
+  border-radius: 2px;
+}
+.lol-find-active {
+  background-color: rgba(249, 115, 22, 0.85);
+  color: #fff;
+}
+
 /* BlockNote エディタを「箱」ではなく Notion 風にページへ溶け込ませる */
 .bn-container {
   --bn-colors-editor-background: transparent;
