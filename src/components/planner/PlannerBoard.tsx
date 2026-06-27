@@ -293,6 +293,7 @@ export default function PlannerBoard({
       {/* キャンバス */}
       <div ref={canvasWrapRef} className="relative min-w-0 flex-1">
         <Tldraw
+          licenseKey={process.env.NEXT_PUBLIC_TLDRAW_LICENSE_KEY}
           shapeUtils={shapeUtils}
           cameraOptions={cameraOptions}
           assets={assets}
