@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useCallback, useState } from "react";
 
 import { db } from "@/lib/db";
-import PlannerBoard from "./PlannerBoard";
+import KonvaBoard from "./KonvaBoard";
+import type { Shape } from "./shapes";
 
 export default function Planner({ planId }: { planId: string }) {
   const [title, setTitle] = useState("");
@@ -24,12 +25,12 @@ export default function Planner({ planId }: { planId: string }) {
       await db.plans.add(plan);
     }
     setTitle(plan.title);
-    return plan.snapshot ?? null;
+    return (plan.snapshot as Shape[] | null) ?? null;
   }, [planId]);
 
   const onChange = useCallback(
-    (snapshot: { document: unknown }) => {
-      db.plans.update(planId, { snapshot, updatedAt: Date.now() });
+    (shapes: Shape[]) => {
+      db.plans.update(planId, { snapshot: shapes, updatedAt: Date.now() });
     },
     [planId],
   );
@@ -41,7 +42,6 @@ export default function Planner({ planId }: { planId: string }) {
 
   return (
     <div className="flex h-full flex-col bg-zinc-950 text-white">
-      {/* ヘッダー */}
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 px-3">
         <Link
           href="/planner"
@@ -58,7 +58,7 @@ export default function Planner({ planId }: { planId: string }) {
         <span className="text-xs text-zinc-600">自動保存</span>
       </header>
 
-      <PlannerBoard load={load} onChange={onChange} />
+      <KonvaBoard load={load} onChange={onChange} />
     </div>
   );
 }

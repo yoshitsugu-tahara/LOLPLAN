@@ -1,33 +1,11 @@
 "use client";
 
+import type Konva from "konva";
 import { useCallback, useRef } from "react";
-import { type Editor as TLEditor, type TLAssetStore } from "tldraw";
 
 import { db } from "@/lib/db";
-import PlannerBoard from "./planner/PlannerBoard";
-
-function fileToDataUrl(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * 過去にアップロードした画像（data URL アセット）を解決するためのストア。
- * 新しい SR プランナー方式では画像アップロードはしないが、旧データの表示用に残す。
- */
-const assetStore: TLAssetStore = {
-  async upload(_asset, file) {
-    const src = await fileToDataUrl(file);
-    return { src };
-  },
-  resolve(asset) {
-    return (asset.props.src as string) ?? null;
-  },
-};
+import KonvaBoard from "./planner/KonvaBoard";
+import type { Shape } from "./planner/shapes";
 
 export default function MapEditorModal({
   mapId,
@@ -36,39 +14,30 @@ export default function MapEditorModal({
   mapId: string;
   onClose: () => void;
 }) {
-  const editorRef = useRef<TLEditor | null>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
 
   const load = useCallback(async () => {
     const m = await db.maps.get(mapId);
-    return m?.snapshot ?? null;
+    return (m?.snapshot as Shape[] | null) ?? null;
   }, [mapId]);
 
   const onChange = useCallback(
-    (snapshot: { document: unknown }) => {
-      db.maps.update(mapId, { snapshot, updatedAt: Date.now() });
+    (shapes: Shape[]) => {
+      db.maps.update(mapId, { snapshot: shapes, updatedAt: Date.now() });
     },
     [mapId],
   );
 
-  // 閉じる時にノート内サムネ用のプレビューを生成（チャンピオン等のリモート画像が
-  // 含まれると toImage が失敗することがあるが、その場合は黙って諦める）
+  // 閉じる時にノート内サムネ用プレビューを生成（チャンピオン等のリモート画像で
+  // canvas が汚染されると失敗するので best-effort）
   const handleClose = async () => {
-    const editor = editorRef.current;
-    if (editor) {
+    const stage = stageRef.current;
+    if (stage) {
       try {
-        const ids = Array.from(editor.getCurrentPageShapeIds());
-        if (ids.length) {
-          const result = await editor.toImage(ids, {
-            format: "png",
-            background: true,
-            padding: 16,
-            scale: 0.5,
-          });
-          const preview = await fileToDataUrl(result.blob);
-          await db.maps.update(mapId, { preview, updatedAt: Date.now() });
-        }
+        const preview = stage.toDataURL({ pixelRatio: 0.4 });
+        await db.maps.update(mapId, { preview, updatedAt: Date.now() });
       } catch {
-        // プレビュー生成失敗は無視（スナップショットは自動保存済み）
+        // 失敗は無視
       }
     }
     onClose();
@@ -86,11 +55,10 @@ export default function MapEditorModal({
             閉じる
           </button>
         </div>
-        <PlannerBoard
+        <KonvaBoard
           load={load}
           onChange={onChange}
-          onEditor={(e) => (editorRef.current = e)}
-          assets={assetStore}
+          onStage={(s) => (stageRef.current = s)}
         />
       </div>
     </div>
