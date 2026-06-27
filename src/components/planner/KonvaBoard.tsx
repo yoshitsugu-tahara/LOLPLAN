@@ -9,6 +9,7 @@ import {
   Image as KImage,
   Layer,
   Line,
+  Rect,
   Stage,
   Text,
   Transformer,
@@ -49,25 +50,24 @@ function clampPos(
 function TokenNode({
   shape,
   tool,
-  onSelect,
-  onChange,
-  onErase,
+  onClick,
+  onDragStart,
+  onDragMove,
+  onDragEnd,
+  onTransform,
 }: {
   shape: TokenShape;
   tool: Tool;
-  onSelect: (id: string) => void;
-  onChange: (s: TokenShape) => void;
-  onErase: (id: string) => void;
+  onClick: (id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
+  onDragStart: (id: string) => void;
+  onDragMove: (id: string) => void;
+  onDragEnd: (id: string) => void;
+  onTransform: (s: TokenShape) => void;
 }) {
   const isImg = isImageSrc(shape.src);
   const img = useImage(isImg ? shape.src : undefined);
   const r = shape.size / 2;
   const iw = shape.size * (shape.fit === "cover" ? 1 : 0.78);
-
-  const handleClick = () => {
-    if (tool === "eraser") onErase(shape.id);
-    else onSelect(shape.id);
-  };
 
   return (
     <Group
@@ -76,17 +76,17 @@ function TokenNode({
       x={shape.x}
       y={shape.y}
       draggable={tool === "select"}
-      onClick={handleClick}
-      onTap={handleClick}
-      onDragEnd={(e) =>
-        onChange({ ...shape, x: e.target.x(), y: e.target.y() })
-      }
+      onClick={(e) => onClick(shape.id, e)}
+      onTap={(e) => onClick(shape.id, e)}
+      onDragStart={() => onDragStart(shape.id)}
+      onDragMove={() => onDragMove(shape.id)}
+      onDragEnd={() => onDragEnd(shape.id)}
       onTransformEnd={(e) => {
         const node = e.target;
         const s = node.scaleX();
         node.scaleX(1);
         node.scaleY(1);
-        onChange({
+        onTransform({
           ...shape,
           x: node.x(),
           y: node.y(),
@@ -155,7 +155,13 @@ export default function KonvaBoard({
 
   const [shapes, setShapes] = useState<Shape[]>([]);
   const [draft, setDraft] = useState<Shape | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [marquee, setMarquee] = useState<{
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  } | null>(null);
   const [tool, setTool] = useState<Tool>("select");
   const [color, setColor] = useState("#f4f4f5");
   const [team, setTeam] = useState<Team>("blue");
@@ -170,6 +176,18 @@ export default function KonvaBoard({
   const draftRef = useRef<Shape | null>(null);
   const drawing = useRef(false);
   const fitted = useRef(false);
+  const marqueeStart = useRef<{ x: number; y: number } | null>(null);
+  const panStart = useRef<{ px: number; py: number; sx: number; sy: number } | null>(
+    null,
+  );
+  const spaceDown = useRef(false);
+  // 複数選択ドラッグ用：開始時の各選択ノード位置
+  const groupDrag = useRef<{
+    id: string;
+    sx: number;
+    sy: number;
+    others: { id: string; x: number; y: number }[];
+  } | null>(null);
 
   const scheduleSave = useCallback(
     (next: Shape[]) => {
@@ -201,7 +219,7 @@ export default function KonvaBoard({
     shapesRef.current = prev;
     setShapes(prev);
     scheduleSave(prev);
-    setSelectedId(null);
+    setSelectedIds([]);
   }, [scheduleSave]);
 
   const redo = useCallback(() => {
@@ -214,10 +232,11 @@ export default function KonvaBoard({
   }, [scheduleSave]);
 
   const deleteSelected = useCallback(() => {
-    if (!selectedId) return;
-    commit((curr) => curr.filter((s) => s.id !== selectedId));
-    setSelectedId(null);
-  }, [selectedId, commit]);
+    if (!selectedIds.length) return;
+    const ids = new Set(selectedIds);
+    commit((curr) => curr.filter((s) => !ids.has(s.id)));
+    setSelectedIds([]);
+  }, [selectedIds, commit]);
 
   // 読み込み
   useEffect(() => {
@@ -265,20 +284,17 @@ export default function KonvaBoard({
     onStage?.(stage);
   }, [size, minScale, onStage]);
 
-  // 選択時に Transformer をアタッチ（トークンのみリサイズ可）
+  // 選択時に Transformer を選択ノード全てへアタッチ
   useEffect(() => {
     const tr = trRef.current;
     const stage = stageRef.current;
     if (!tr || !stage) return;
-    const sel = shapes.find((s) => s.id === selectedId);
-    if (selectedId && sel?.type === "token") {
-      const node = stage.findOne(`#${selectedId}`);
-      tr.nodes(node ? [node] : []);
-    } else {
-      tr.nodes([]);
-    }
+    const nodes = selectedIds
+      .map((id) => stage.findOne(`#${id}`))
+      .filter((n): n is NonNullable<typeof n> => !!n);
+    tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
-  }, [selectedId, shapes]);
+  }, [selectedIds, shapes]);
 
   // 画面→ページ座標
   const toPage = (stage: Konva.Stage) => {
@@ -308,16 +324,35 @@ export default function KonvaBoard({
     stage.batchDraw();
   };
 
-  // --- 描画ツールのポインタ操作 ---
+  // --- ポインタ操作（パン / マーキー選択 / 描画） ---
   const onPointerDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
     const stage = stageRef.current;
     if (!stage) return;
-    if (tool === "select") {
-      // 空白クリックで選択解除
-      if (e.target === stage) setSelectedId(null);
+    const evt = e.evt;
+    // パン：中ボタン or スペース+左
+    if (evt.button === 1 || (spaceDown.current && evt.button === 0)) {
+      panStart.current = {
+        px: evt.clientX,
+        py: evt.clientY,
+        sx: stage.x(),
+        sy: stage.y(),
+      };
       return;
     }
-    if (tool === "eraser") return; // 消しゴムは shape クリックで処理
+    if (evt.button !== 0) return;
+
+    if (tool === "select") {
+      if (e.target === stage) {
+        // 空白ドラッグ＝マーキー選択
+        const p = toPage(stage);
+        marqueeStart.current = { x: p.x, y: p.y };
+        setMarquee({ x: p.x, y: p.y, w: 0, h: 0 });
+        if (!evt.shiftKey) setSelectedIds([]);
+      }
+      return;
+    }
+    if (tool === "eraser") return;
+
     const p = toPage(stage);
     if (tool === "text") {
       const text = window.prompt("テキスト");
@@ -344,11 +379,44 @@ export default function KonvaBoard({
   };
 
   const onPointerMove = () => {
-    if (!drawing.current) return;
     const stage = stageRef.current;
-    const d = draftRef.current;
-    if (!stage || !d || (d.type !== "pen" && d.type !== "line" && d.type !== "arrow"))
+    if (!stage) return;
+    // パン
+    if (panStart.current) {
+      const ps = panStart.current;
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+      // clientX/Y ベースの移動量
+      const rect = stage.container().getBoundingClientRect();
+      const dx = pointer.x + rect.left - ps.px;
+      const dy = pointer.y + rect.top - ps.py;
+      stage.position(
+        clampPos(
+          { x: ps.sx + dx, y: ps.sy + dy },
+          stage.scaleX(),
+          size.w,
+          size.h,
+        ),
+      );
+      stage.batchDraw();
       return;
+    }
+    // マーキー
+    if (marqueeStart.current) {
+      const s = marqueeStart.current;
+      const p = toPage(stage);
+      setMarquee({
+        x: Math.min(s.x, p.x),
+        y: Math.min(s.y, p.y),
+        w: Math.abs(p.x - s.x),
+        h: Math.abs(p.y - s.y),
+      });
+      return;
+    }
+    // 描画
+    if (!drawing.current) return;
+    const d = draftRef.current;
+    if (!d || (d.type !== "pen" && d.type !== "line" && d.type !== "arrow")) return;
     const p = toPage(stage);
     const next: Shape =
       d.type === "pen"
@@ -359,6 +427,33 @@ export default function KonvaBoard({
   };
 
   const onPointerUp = () => {
+    if (panStart.current) {
+      panStart.current = null;
+      return;
+    }
+    if (marqueeStart.current) {
+      const m = marquee;
+      marqueeStart.current = null;
+      setMarquee(null);
+      const stage = stageRef.current;
+      if (m && stage && (m.w > 3 || m.h > 3)) {
+        const hit = shapes
+          .filter((s) => {
+            const node = stage.findOne(`#${s.id}`);
+            if (!node) return false;
+            const r = node.getClientRect({ relativeTo: stage });
+            return !(
+              r.x + r.width < m.x ||
+              m.x + m.w < r.x ||
+              r.y + r.height < m.y ||
+              m.y + m.h < r.y
+            );
+          })
+          .map((s) => s.id);
+        setSelectedIds(hit);
+      }
+      return;
+    }
     if (!drawing.current) return;
     drawing.current = false;
     const d = draftRef.current;
@@ -367,6 +462,64 @@ export default function KonvaBoard({
     if (d && (d.type !== "pen" || d.points.length >= 4)) {
       commit((curr) => [...curr, d]);
     }
+  };
+
+  // 複数トークンのまとめ移動
+  const onNodeDragStart = (id: string) => {
+    const stage = stageRef.current;
+    if (!stage || !selectedIds.includes(id) || selectedIds.length < 2) {
+      groupDrag.current = null;
+      return;
+    }
+    const self = stage.findOne(`#${id}`);
+    if (!self) return;
+    groupDrag.current = {
+      id,
+      sx: self.x(),
+      sy: self.y(),
+      others: selectedIds
+        .filter((x) => x !== id)
+        .map((oid) => {
+          const n = stage.findOne(`#${oid}`);
+          return n ? { id: oid, x: n.x(), y: n.y() } : null;
+        })
+        .filter((o): o is { id: string; x: number; y: number } => !!o),
+    };
+  };
+
+  const onNodeDragMove = (id: string) => {
+    const g = groupDrag.current;
+    const stage = stageRef.current;
+    if (!g || g.id !== id || !stage) return;
+    const self = stage.findOne(`#${id}`);
+    if (!self) return;
+    const dx = self.x() - g.sx;
+    const dy = self.y() - g.sy;
+    for (const o of g.others) {
+      const n = stage.findOne(`#${o.id}`);
+      if (n) n.position({ x: o.x + dx, y: o.y + dy });
+    }
+    trRef.current?.forceUpdate();
+  };
+
+  const onNodeDragEnd = (id: string) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const g = groupDrag.current;
+    groupDrag.current = null;
+    const ids = g && g.id === id ? [id, ...g.others.map((o) => o.id)] : [id];
+    const pos = new Map<string, { x: number; y: number }>();
+    for (const i of ids) {
+      const n = stage.findOne(`#${i}`);
+      if (n) pos.set(i, { x: n.x(), y: n.y() });
+    }
+    commit((curr) =>
+      curr.map((s) =>
+        s.type === "token" && pos.has(s.id)
+          ? { ...s, x: pos.get(s.id)!.x, y: pos.get(s.id)!.y }
+          : s,
+      ),
+    );
   };
 
   // --- 配置 ---
@@ -452,19 +605,42 @@ export default function KonvaBoard({
     [placeChampion, placeToken],
   );
 
-  // キーボード削除
+  // キーボード（削除・パン用スペース）
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
-        const t = document.activeElement?.tagName;
-        if (t === "INPUT" || t === "TEXTAREA") return;
+    const isTyping = () => {
+      const t = document.activeElement?.tagName;
+      return t === "INPUT" || t === "TEXTAREA";
+    };
+    const down = (e: KeyboardEvent) => {
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedIds.length &&
+        !isTyping()
+      ) {
         e.preventDefault();
         deleteSelected();
       }
+      if (e.code === "Space" && !isTyping()) {
+        spaceDown.current = true;
+        const c = stageRef.current?.container();
+        if (c) c.style.cursor = "grab";
+        e.preventDefault();
+      }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, deleteSelected]);
+    const up = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        spaceDown.current = false;
+        const c = stageRef.current?.container();
+        if (c) c.style.cursor = "";
+      }
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [selectedIds, deleteSelected]);
 
   const updateShape = useCallback(
     (s: Shape) => commit((curr) => curr.map((x) => (x.id === s.id ? s : x))),
@@ -476,9 +652,23 @@ export default function KonvaBoard({
     [commit],
   );
 
-  const onShapeClick = (id: string) => {
-    if (tool === "eraser") eraseShape(id);
-    else if (tool === "select") setSelectedId(id);
+  const onShapeClick = (
+    id: string,
+    e?: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
+  ) => {
+    if (tool === "eraser") {
+      eraseShape(id);
+      return;
+    }
+    if (tool !== "select") return;
+    const shift = !!(e?.evt as MouseEvent | undefined)?.shiftKey;
+    setSelectedIds((prev) =>
+      shift
+        ? prev.includes(id)
+          ? prev.filter((x) => x !== id)
+          : [...prev, id]
+        : [id],
+    );
   };
 
   const renderDraw = (s: Shape, key?: string) => {
@@ -495,8 +685,8 @@ export default function KonvaBoard({
           tension={s.type === "pen" ? 0.4 : 0}
           hitStrokeWidth={Math.max(12, s.width + 8)}
           draggable={tool === "select"}
-          onClick={() => onShapeClick(s.id)}
-          onTap={() => onShapeClick(s.id)}
+          onClick={(e) => onShapeClick(s.id, e)}
+          onTap={(e) => onShapeClick(s.id, e)}
           onDragEnd={(e) => {
             const dx = e.target.x();
             const dy = e.target.y();
@@ -522,8 +712,8 @@ export default function KonvaBoard({
           pointerWidth={11}
           hitStrokeWidth={16}
           draggable={tool === "select"}
-          onClick={() => onShapeClick(s.id)}
-          onTap={() => onShapeClick(s.id)}
+          onClick={(e) => onShapeClick(s.id, e)}
+          onTap={(e) => onShapeClick(s.id, e)}
           onDragEnd={(e) => {
             const dx = e.target.x();
             const dy = e.target.y();
@@ -548,8 +738,8 @@ export default function KonvaBoard({
           fontStyle="bold"
           fill={s.color}
           draggable={tool === "select"}
-          onClick={() => onShapeClick(s.id)}
-          onTap={() => onShapeClick(s.id)}
+          onClick={(e) => onShapeClick(s.id, e)}
+          onTap={(e) => onShapeClick(s.id, e)}
           onDblClick={() => {
             const t = window.prompt("テキスト", s.text);
             if (t != null) updateShape({ ...s, text: t });
@@ -584,10 +774,6 @@ export default function KonvaBoard({
             ref={stageRef}
             width={size.w}
             height={size.h}
-            draggable={tool === "select"}
-            dragBoundFunc={(pos) =>
-              clampPos(pos, stageRef.current?.scaleX() ?? 1, size.w, size.h)
-            }
             onWheel={handleWheel}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -609,15 +795,29 @@ export default function KonvaBoard({
                     key={s.id}
                     shape={s}
                     tool={tool}
-                    onSelect={onShapeClick}
-                    onChange={updateShape}
-                    onErase={eraseShape}
+                    onClick={onShapeClick}
+                    onDragStart={onNodeDragStart}
+                    onDragMove={onNodeDragMove}
+                    onDragEnd={onNodeDragEnd}
+                    onTransform={updateShape}
                   />
                 ) : (
                   renderDraw(s)
                 ),
               )}
               {draft && renderDraw(draft, "draft")}
+              {marquee && (
+                <Rect
+                  x={marquee.x}
+                  y={marquee.y}
+                  width={marquee.w}
+                  height={marquee.h}
+                  fill="rgba(56,189,248,0.12)"
+                  stroke="#38bdf8"
+                  strokeWidth={2}
+                  listening={false}
+                />
+              )}
               <Transformer
                 ref={trRef}
                 rotateEnabled={false}
