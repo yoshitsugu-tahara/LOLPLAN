@@ -27,7 +27,14 @@ import {
   TEAM_COLORS,
 } from "./data";
 import Palette from "./Palette";
-import { isImageSrc, newId, type Shape, type TokenShape, type Tool } from "./shapes";
+import {
+  type DrawShape,
+  isImageSrc,
+  newId,
+  type Shape,
+  type TokenShape,
+  type Tool,
+} from "./shapes";
 import Toolbar from "./Toolbar";
 import { useImage } from "./useImage";
 
@@ -139,6 +146,101 @@ function TokenNode({
   );
 }
 
+/** 矢印/線の端点と曲げを編集するハンドル（選択中の単体に表示） */
+function ArrowEditor({
+  shape,
+  r,
+  onBegin,
+  onCommit,
+}: {
+  shape: DrawShape;
+  r: number;
+  onBegin: () => void;
+  onCommit: (s: DrawShape) => void;
+}) {
+  const pts = shape.points;
+  const sx = pts[0];
+  const sy = pts[1];
+  const ex = pts[pts.length - 2];
+  const ey = pts[pts.length - 1];
+  const hasBend = pts.length >= 6;
+  const bx = hasBend ? pts[2] : (sx + ex) / 2;
+  const by = hasBend ? pts[3] : (sy + ey) / 2;
+
+  const setCursor = (e: Konva.KonvaEventObject<MouseEvent>, cur: string) => {
+    const c = e.target.getStage()?.container();
+    if (c) c.style.cursor = cur;
+  };
+
+  // ドラッグ中は state を更新せず、矢印ノードの points を直接書き換える
+  // （react-konva の制御プロップ競合で戻されるのを防ぐ）。離した時に確定。
+  const Handle = ({
+    x,
+    y,
+    fill,
+    compute,
+  }: {
+    x: number;
+    y: number;
+    fill: string;
+    compute: (x: number, y: number) => number[];
+  }) => (
+    <Circle
+      x={x}
+      y={y}
+      radius={r}
+      fill={fill}
+      stroke="#fff"
+      strokeWidth={r * 0.22}
+      draggable
+      onMouseEnter={(e) => setCursor(e, "grab")}
+      onMouseLeave={(e) => setCursor(e, "")}
+      onDragStart={onBegin}
+      onDragMove={(e) => {
+        const np = compute(e.target.x(), e.target.y());
+        const node = e.target.getStage()?.findOne(`#${shape.id}`);
+        if (node) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (node as any).points(np);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (np.length > 4) (node as any).tension(0.5);
+          node.getLayer()?.batchDraw();
+        }
+      }}
+      onDragEnd={(e) =>
+        onCommit({ ...shape, points: compute(e.target.x(), e.target.y()) })
+      }
+    />
+  );
+
+  return (
+    <>
+      <Handle
+        x={sx}
+        y={sy}
+        fill="#38bdf8"
+        compute={(x, y) => [x, y, ...pts.slice(2)]}
+      />
+      <Handle
+        x={ex}
+        y={ey}
+        fill="#38bdf8"
+        compute={(x, y) => [...pts.slice(0, -2), x, y]}
+      />
+      <Handle
+        x={bx}
+        y={by}
+        fill="#f59e0b"
+        compute={(x, y) =>
+          hasBend
+            ? [pts[0], pts[1], x, y, pts[4], pts[5]]
+            : [sx, sy, x, y, ex, ey]
+        }
+      />
+    </>
+  );
+}
+
 export default function KonvaBoard({
   load,
   onChange,
@@ -181,6 +283,8 @@ export default function KonvaBoard({
     null,
   );
   const spaceDown = useRef(false);
+  // ハンドル編集（矢印の端点/曲げ）開始時のスナップショット
+  const editStartRef = useRef<Shape[] | null>(null);
   // 複数選択ドラッグ用：開始時の各選択ノード位置
   const groupDrag = useRef<{
     id: string;
@@ -284,17 +388,29 @@ export default function KonvaBoard({
     onStage?.(stage);
   }, [size, minScale, onStage]);
 
-  // 選択時に Transformer を選択ノード全てへアタッチ
+  // 単体選択された矢印/線は専用ハンドルで編集するので Transformer は付けない
+  const editingArrow =
+    selectedIds.length === 1
+      ? shapes.find(
+          (s) =>
+            s.id === selectedIds[0] &&
+            (s.type === "arrow" || s.type === "line"),
+        )
+      : undefined;
+
+  // 選択時に Transformer を選択ノードへアタッチ
   useEffect(() => {
     const tr = trRef.current;
     const stage = stageRef.current;
     if (!tr || !stage) return;
-    const nodes = selectedIds
-      .map((id) => stage.findOne(`#${id}`))
-      .filter((n): n is NonNullable<typeof n> => !!n);
+    const nodes = editingArrow
+      ? []
+      : selectedIds
+          .map((id) => stage.findOne(`#${id}`))
+          .filter((n): n is NonNullable<typeof n> => !!n);
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
-  }, [selectedIds, shapes]);
+  }, [selectedIds, shapes, editingArrow]);
 
   // 画面→ページ座標
   const toPage = (stage: Konva.Stage) => {
@@ -647,6 +763,30 @@ export default function KonvaBoard({
     [commit],
   );
 
+  // ハンドル編集（履歴は開始時点から1回だけ積む）
+  const beginEdit = useCallback(() => {
+    editStartRef.current = shapesRef.current;
+  }, []);
+  const transientUpdate = useCallback((s: Shape) => {
+    const next = shapesRef.current.map((x) => (x.id === s.id ? s : x));
+    shapesRef.current = next;
+    setShapes(next);
+  }, []);
+  const endEdit = useCallback(() => {
+    if (!editStartRef.current) return;
+    pastRef.current.push(editStartRef.current);
+    futureRef.current = [];
+    editStartRef.current = null;
+    scheduleSave(shapesRef.current);
+  }, [scheduleSave]);
+  const commitEdit = useCallback(
+    (s: Shape) => {
+      transientUpdate(s);
+      endEdit();
+    },
+    [transientUpdate, endEdit],
+  );
+
   const eraseShape = useCallback(
     (id: string) => commit((curr) => curr.filter((s) => s.id !== id)),
     [commit],
@@ -682,7 +822,7 @@ export default function KonvaBoard({
           strokeWidth={s.width}
           lineCap="round"
           lineJoin="round"
-          tension={s.type === "pen" ? 0.4 : 0}
+          tension={s.type === "pen" ? 0.4 : s.points.length > 4 ? 0.5 : 0}
           hitStrokeWidth={Math.max(12, s.width + 8)}
           draggable={tool === "select"}
           onClick={(e) => onShapeClick(s.id, e)}
@@ -708,6 +848,7 @@ export default function KonvaBoard({
           stroke={s.color}
           fill={s.color}
           strokeWidth={s.width}
+          tension={s.points.length > 4 ? 0.5 : 0}
           pointerLength={12}
           pointerWidth={11}
           hitStrokeWidth={16}
@@ -816,6 +957,14 @@ export default function KonvaBoard({
                   stroke="#38bdf8"
                   strokeWidth={2}
                   listening={false}
+                />
+              )}
+              {editingArrow && (
+                <ArrowEditor
+                  shape={editingArrow as DrawShape}
+                  r={10 / (stageRef.current?.scaleX() || minScale || 1)}
+                  onBegin={beginEdit}
+                  onCommit={commitEdit}
                 />
               )}
               <Transformer
