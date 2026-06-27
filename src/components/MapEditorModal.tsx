@@ -4,6 +4,7 @@ import type Konva from "konva";
 import { useCallback, useRef } from "react";
 
 import { db } from "@/lib/db";
+import { MAP_SIZE } from "./planner/data";
 import KonvaBoard from "./planner/KonvaBoard";
 import type { Shape } from "./planner/shapes";
 
@@ -28,16 +29,34 @@ export default function MapEditorModal({
     [mapId],
   );
 
-  // 閉じる時にノート内サムネ用プレビューを生成（チャンピオン等のリモート画像で
-  // canvas が汚染されると失敗するので best-effort）
+  // 閉じる時にノート内サムネ用プレビューを生成。
+  // 現在のズームに依らずマップ全体を、高解像度で切り出す（best-effort）。
   const handleClose = async () => {
     const stage = stageRef.current;
     if (stage) {
       try {
-        const preview = stage.toDataURL({ pixelRatio: 0.4 });
+        const THUMB = 720;
+        const scale = THUMB / MAP_SIZE;
+        const prevScale = stage.scaleX();
+        const prevPos = stage.position();
+        stage.scale({ x: scale, y: scale });
+        stage.position({ x: 0, y: 0 });
+        stage.draw();
+        const preview = stage.toDataURL({
+          x: 0,
+          y: 0,
+          width: THUMB,
+          height: THUMB,
+          pixelRatio: 1.5,
+          mimeType: "image/jpeg",
+          quality: 0.85,
+        });
+        stage.scale({ x: prevScale, y: prevScale });
+        stage.position(prevPos);
+        stage.draw();
         await db.maps.update(mapId, { preview, updatedAt: Date.now() });
       } catch {
-        // 失敗は無視
+        // 失敗は無視（スナップショットは自動保存済み）
       }
     }
     onClose();
