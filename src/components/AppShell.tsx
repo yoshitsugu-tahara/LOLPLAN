@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { db } from "@/lib/db";
 import { OPEN_MAP_EVENT } from "./blocks/MapBlock";
+import LabelEditor from "./LabelEditor";
 import NoteSidebar from "./NoteSidebar";
 import SearchModal from "./SearchModal";
 import TableOfContents from "./TableOfContents";
@@ -45,6 +46,14 @@ export default function AppShell() {
     () => (selectedId ? db.notes.get(selectedId) : undefined),
     [selectedId],
   );
+
+  // 全ノートから使われているラベル一覧（オートコンプリート用）
+  const allLabels = useLiveQuery(async () => {
+    const ns = await db.notes.toArray();
+    return [...new Set(ns.flatMap((n) => n.labels ?? []))].sort((a, b) =>
+      a.localeCompare(b, "ja"),
+    );
+  }, []);
 
   // 別のノートに切り替わった時だけタイトル入力欄を同期する。
   // （同じノートの本文編集などで selected が更新されても上書きしない）
@@ -106,6 +115,11 @@ export default function AppShell() {
     db.notes.update(selectedId, { title, updatedAt: Date.now() });
   };
 
+  const updateLabels = (labels: string[]) => {
+    if (!selectedId) return;
+    db.notes.update(selectedId, { labels, updatedAt: Date.now() });
+  };
+
   if (!mounted) return null;
 
   return (
@@ -155,6 +169,13 @@ export default function AppShell() {
                 placeholder="無題"
                 className="w-full bg-transparent text-4xl font-bold leading-tight tracking-tight text-white outline-none placeholder:text-zinc-700"
               />
+              <div className="mt-3">
+                <LabelEditor
+                  labels={selected.labels ?? []}
+                  allLabels={allLabels ?? []}
+                  onChange={updateLabels}
+                />
+              </div>
               <TableOfContents content={selected.content} />
             </div>
             <div className="flex-1 overflow-y-auto pb-32">

@@ -9,6 +9,7 @@ export interface Note {
   updatedAt: number;
   sectionId?: string | null; // 所属セクション。未設定＝未分類
   order?: number; // セクション内での並び順（小さいほど上）
+  labels?: string[]; // 任意のラベル（タグ）。複数可
 }
 
 /** サイドバーの分類セクション（ユーザーが作成） */

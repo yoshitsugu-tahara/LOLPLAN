@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { db, type Note } from "@/lib/db";
+import { labelColor } from "./LabelEditor";
 
 const NOTE_MIME = "application/x-lolnote-note";
 
@@ -103,6 +104,8 @@ export default function NoteSidebar({
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
+  // 絞り込み中のラベル（複数選択＝すべて含むノートのみ表示）
+  const [filter, setFilter] = useState<string[]>([]);
 
   // 最初のノートを自動選択
   useEffect(() => {
@@ -120,9 +123,21 @@ export default function NoteSidebar({
     );
   }
 
-  const uncategorized = notes.filter((n) => !n.sectionId).sort(byOrder);
+  // 使われている全ラベル（絞り込みチップ用）
+  const allLabels = [...new Set(notes.flatMap((n) => n.labels ?? []))].sort(
+    (a, b) => a.localeCompare(b, "ja"),
+  );
+  // 選択中ラベルをすべて含むか（AND）。未選択時は全件通過
+  const matches = (n: Note) =>
+    filter.every((l) => (n.labels ?? []).includes(l));
+  const toggleFilter = (l: string) =>
+    setFilter((f) => (f.includes(l) ? f.filter((x) => x !== l) : [...f, l]));
+
+  const uncategorized = notes
+    .filter((n) => !n.sectionId && matches(n))
+    .sort(byOrder);
   const notesOf = (sid: string) =>
-    notes.filter((n) => n.sectionId === sid).sort(byOrder);
+    notes.filter((n) => n.sectionId === sid && matches(n)).sort(byOrder);
 
   // --- セクション操作 ---
   const createSection = () => {
@@ -248,6 +263,18 @@ export default function NoteSidebar({
         <span className="min-w-0 flex-1 truncate text-sm">
           {n.title || "無題のノート"}
         </span>
+        {!!(n.labels && n.labels.length) && (
+          <span className="flex shrink-0 items-center gap-0.5">
+            {n.labels.slice(0, 3).map((l) => (
+              <span
+                key={l}
+                title={l}
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: labelColor(l).borderColor }}
+              />
+            ))}
+          </span>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -343,6 +370,29 @@ export default function NoteSidebar({
         🗺️ <span>SRプランナー</span>
       </Link>
 
+      {/* ラベル絞り込み */}
+      {allLabels.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1 px-2">
+          {allLabels.map((l) => {
+            const active = filter.includes(l);
+            return (
+              <button
+                key={l}
+                onClick={() => toggleFilter(l)}
+                style={active ? labelColor(l) : undefined}
+                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium transition ${
+                  active
+                    ? ""
+                    : "border-white/10 text-zinc-400 hover:border-white/25 hover:text-zinc-200"
+                }`}
+              >
+                {l}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ノート＋セクション。余白の右クリック（aside側）でセクション作成 */}
       <div
         className="no-scrollbar mt-2 flex-1 overflow-y-auto px-2 pb-4"
@@ -357,8 +407,11 @@ export default function NoteSidebar({
         </div>
         {uncategorized.map(renderNote)}
 
-        {/* セクション */}
-        {sections.map((sec) => (
+        {/* セクション（絞り込み中は該当ノートが無いセクションは隠す） */}
+        {sections.map((sec) => {
+          const secNotes = notesOf(sec.id);
+          if (filter.length && secNotes.length === 0) return null;
+          return (
           <div key={sec.id} className="mt-3">
             <div
               onContextMenu={(e) => {
@@ -413,9 +466,10 @@ export default function NoteSidebar({
                 </span>
               )}
             </div>
-            {notesOf(sec.id).map(renderNote)}
+            {secNotes.map(renderNote)}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
