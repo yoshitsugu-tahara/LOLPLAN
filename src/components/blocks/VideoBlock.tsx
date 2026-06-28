@@ -12,6 +12,8 @@ export const VideoBlock = createReactBlockSpec(
       url: { default: "" },
       // "ask" = 埋め込むかリンクのままか選ばせる / "embed" = 埋め込み表示
       mode: { default: "embed", values: ["ask", "embed"] as const },
+      // 折りたたみ状態（デフォルトは展開）
+      collapsed: { default: false },
     },
     content: "none",
   },
@@ -73,9 +75,69 @@ export const VideoBlock = createReactBlockSpec(
 
       // 2) 埋め込み表示
       if (embed) {
+        const collapsed = block.props.collapsed;
+        const toggleCollapsed = () =>
+          editor.updateBlock(block, {
+            type: "video",
+            props: { ...block.props, collapsed: !collapsed },
+          });
+
+        // 折りたたみ時：細いバーだけ表示（クリックで展開）
+        if (collapsed) {
+          return (
+            <div className="my-1 w-full" data-content-type="video">
+              <button
+                onClick={toggleCollapsed}
+                className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-white/10"
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="shrink-0"
+                >
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+                <span className="shrink-0">🎬</span>
+                <span className="min-w-0 flex-1 truncate text-zinc-400">
+                  {url}
+                </span>
+                <span className="shrink-0 text-xs text-zinc-600">展開</span>
+              </button>
+            </div>
+          );
+        }
+
         return (
-          <div className="my-1 w-full" data-content-type="video">
+          <div className="group my-1 w-full" data-content-type="video">
             <div className="relative w-full overflow-hidden rounded-lg bg-black aspect-video">
+              {/* 折りたたみボタン（ホバーで表示） */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleCollapsed();
+                }}
+                title="折りたたむ"
+                className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition hover:bg-black/80 group-hover:opacity-100"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m18 15-6-6-6 6" />
+                </svg>
+              </button>
               {ytId && !playing ? (
                 // クリックするまではクリーンなサムネ＋再生ボタンだけ表示
                 <button
