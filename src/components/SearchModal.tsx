@@ -1,9 +1,8 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useMemo, useState } from "react";
 
-import { db } from "@/lib/db";
+import { useNotes } from "@/lib/store";
 import { blocksToText } from "./noteText";
 
 interface Result {
@@ -46,7 +45,7 @@ export default function SearchModal({
 }) {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
-  const notes = useLiveQuery(() => db.notes.toArray(), []);
+  const { data: notes } = useNotes();
 
   const results = useMemo<Result[]>(() => {
     const query = q.trim().toLowerCase();

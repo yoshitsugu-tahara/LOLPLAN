@@ -1,11 +1,14 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
-import { nanoid } from "nanoid";
 import dynamic from "next/dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { db } from "@/lib/db";
+import { patchNoteCache, reloadNotes, useNotes } from "@/lib/store";
+import {
+  createNote as createNoteAction,
+  deleteNote as deleteNoteAction,
+  updateNote,
+} from "@/server/actions/notes";
 import { OPEN_MAP_EVENT } from "./blocks/MapBlock";
 import LabelEditor from "./LabelEditor";
 import NoteSidebar from "./NoteSidebar";
@@ -44,18 +47,19 @@ export default function AppShell() {
       return next;
     });
 
-  const selected = useLiveQuery(
-    () => (selectedId ? db.notes.get(selectedId) : undefined),
-    [selectedId],
-  );
+  const { data: notes } = useNotes();
+  const selected = selectedId
+    ? notes?.find((n) => n.id === selectedId)
+    : undefined;
 
   // 全ノートから使われているラベル一覧（オートコンプリート用）
-  const allLabels = useLiveQuery(async () => {
-    const ns = await db.notes.toArray();
-    return [...new Set(ns.flatMap((n) => n.labels ?? []))].sort((a, b) =>
-      a.localeCompare(b, "ja"),
-    );
-  }, []);
+  const allLabels = useMemo(
+    () =>
+      [...new Set((notes ?? []).flatMap((n) => n.labels ?? []))].sort((a, b) =>
+        a.localeCompare(b, "ja"),
+      ),
+    [notes],
+  );
 
   // 別のノートに切り替わった時だけタイトル入力欄を同期する。
   // （同じノートの本文編集などで selected が更新されても上書きしない）
@@ -91,35 +95,34 @@ export default function AppShell() {
   }, []);
 
   const createNote = async () => {
-    const id = nanoid();
-    const now = Date.now();
-    await db.notes.add({
-      id,
-      title: "無題のノート",
-      content: undefined,
-      createdAt: now,
-      updatedAt: now,
-      sectionId: null,
-      order: -now, // 新規は未分類の先頭に
-    });
+    const id = await createNoteAction();
+    await reloadNotes();
     setSelectedId(id);
   };
 
   const deleteNote = async (id: string) => {
     if (!confirm("このノートを削除しますか？")) return;
-    await db.notes.delete(id);
+    await deleteNoteAction(id);
+    await reloadNotes();
     if (selectedId === id) setSelectedId(null);
   };
 
+  // タイトルは打鍵ごとにDB書き込みすると重いのでデバウンス保存。
+  // 表示・キャッシュは即時反映する。
+  const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const updateTitle = (title: string) => {
     if (!selectedId) return;
+    const id = selectedId;
     setTitleDraft(title);
-    db.notes.update(selectedId, { title, updatedAt: Date.now() });
+    patchNoteCache(id, { title, updatedAt: Date.now() });
+    if (titleTimer.current) clearTimeout(titleTimer.current);
+    titleTimer.current = setTimeout(() => updateNote(id, { title }), 500);
   };
 
   const updateLabels = (labels: string[]) => {
     if (!selectedId) return;
-    db.notes.update(selectedId, { labels, updatedAt: Date.now() });
+    patchNoteCache(selectedId, { labels, updatedAt: Date.now() });
+    updateNote(selectedId, { labels });
   };
 
   if (!mounted) return null;

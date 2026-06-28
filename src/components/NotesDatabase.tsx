@@ -1,9 +1,8 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 
-import { db } from "@/lib/db";
+import { useNotes, useSections } from "@/lib/store";
 import { labelColor } from "./LabelEditor";
 import { blocksToText } from "./noteText";
 
@@ -36,8 +35,8 @@ export default function NotesDatabase({
   onOpen: (id: string) => void;
   onCreate: () => void;
 }) {
-  const notes = useLiveQuery(() => db.notes.toArray(), []);
-  const sections = useLiveQuery(() => db.sections.toArray(), []);
+  const { data: notes } = useNotes();
+  const { data: sections } = useSections();
   const [view, setView] = useState<"table" | "gallery">(() =>
     typeof window !== "undefined" &&
     localStorage.getItem("lolnote:db-view") === "gallery"

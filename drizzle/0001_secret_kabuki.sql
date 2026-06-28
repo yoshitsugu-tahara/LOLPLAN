@@ -1,0 +1,1 @@
+ALTER TABLE "note" ALTER COLUMN "order" SET DATA TYPE bigint;

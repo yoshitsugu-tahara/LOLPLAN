@@ -1,8 +1,7 @@
 "use client";
 
 import { createReactBlockSpec } from "@blocknote/react";
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { useMap } from "@/lib/store";
 
 /** マップ注釈ブロックを開くようAppShellへ依頼するイベント名 */
 export const OPEN_MAP_EVENT = "lolnote:open-map";
@@ -25,10 +24,7 @@ export const MapBlock = createReactBlockSpec(
     render: ({ block }) => {
       const mapId = block.props.mapId;
       // eslint-disable-next-line react-hooks/rules-of-hooks
-      const map = useLiveQuery(
-        () => (mapId ? db.maps.get(mapId) : undefined),
-        [mapId],
-      );
+      const { data: map } = useMap(mapId || null);
 
       return (
         <div className="my-1 w-full" data-content-type="map">

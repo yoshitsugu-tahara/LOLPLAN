@@ -15,7 +15,9 @@ import { flip, offset, shift, size } from "@floating-ui/react";
 import { nanoid } from "nanoid";
 import { useEffect, useRef } from "react";
 
-import { db, type Note } from "@/lib/db";
+import { patchNoteCache } from "@/lib/store";
+import type { Note } from "@/lib/types";
+import { updateNote } from "@/server/actions/notes";
 import { schema, type AppEditor } from "./blocks/schema";
 import { toEmbedUrl } from "./blocks/video-url";
 import FindBar from "./FindBar";
@@ -56,14 +58,9 @@ function mediaItems(editor: AppEditor): DefaultReactSuggestionItem[] {
       subtext: "画像にペン・記号で書き込む",
       group: "メディア",
       icon: <span>🗺️</span>,
-      onItemClick: async () => {
+      onItemClick: () => {
+        // マップ行はDB側で初回保存時に作られる（ここではブロックを置くだけ）
         const mapId = nanoid();
-        await db.maps.add({
-          id: mapId,
-          snapshot: null,
-          preview: null,
-          updatedAt: Date.now(),
-        });
         editor.insertBlocks(
           [{ type: "map", props: { mapId } }],
           editor.getTextCursorPosition().block,
@@ -139,11 +136,12 @@ export default function Editor({
   const handleChange = () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      db.notes.update(note.id, {
-        content: editor.document,
-        updatedAt: Date.now(),
-      });
-    }, 400);
+      const content = editor.document;
+      const updatedAt = Date.now();
+      // 一覧キャッシュも即更新（検索やプレビューの整合性を保つ・再フェッチ無し）
+      patchNoteCache(note.id, { content, updatedAt });
+      updateNote(note.id, { content });
+    }, 500);
   };
 
   return (

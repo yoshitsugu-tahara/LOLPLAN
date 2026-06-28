@@ -1,11 +1,21 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
-import { nanoid } from "nanoid";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { db, type Note } from "@/lib/db";
+import {
+  reloadNotes,
+  reloadSections,
+  useNotes,
+  useSections,
+} from "@/lib/store";
+import type { Note } from "@/lib/types";
+import { moveNote as moveNoteAction } from "@/server/actions/notes";
+import {
+  createSection as createSectionAction,
+  deleteSection as deleteSectionAction,
+  renameSection,
+} from "@/server/actions/sections";
 import { labelColor } from "./LabelEditor";
 
 const NOTE_MIME = "application/x-lolnote-note";
@@ -100,11 +110,8 @@ export default function NoteSidebar({
   onOpenDatabase: () => void;
   databaseActive?: boolean;
 }) {
-  const notes = useLiveQuery(() => db.notes.toArray(), []);
-  const sections = useLiveQuery(
-    () => db.sections.orderBy("order").toArray(),
-    [],
-  );
+  const { data: notes } = useNotes();
+  const { data: sections } = useSections();
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
@@ -145,22 +152,16 @@ export default function NoteSidebar({
     notes.filter((n) => n.sectionId === sid && matches(n)).sort(byOrder);
 
   // --- セクション操作 ---
-  const createSection = () => {
-    const id = nanoid();
-    const maxO = sections.reduce((m, s) => Math.max(m, s.order), -1);
-    db.sections.add({ id, name: "新しいセクション", order: maxO + 1 });
+  const createSection = async () => {
+    const id = await createSectionAction();
+    await reloadSections();
     setRenaming(id);
   };
   const deleteSection = async (id: string) => {
     if (!confirm("このセクションを削除しますか？（中のノートは未分類に戻ります）"))
       return;
-    await db.transaction("rw", db.notes, db.sections, async () => {
-      const inSec = (await db.notes.toArray()).filter(
-        (n) => n.sectionId === id,
-      );
-      for (const n of inSec) await db.notes.update(n.id, { sectionId: null });
-      await db.sections.delete(id);
-    });
+    await deleteSectionAction(id);
+    await Promise.all([reloadSections(), reloadNotes()]);
   };
 
   // --- DnD：ノートを toSectionId の toIndex に移動 ---
@@ -169,31 +170,8 @@ export default function NoteSidebar({
     toSectionId: string | null,
     toIndex: number,
   ) => {
-    await db.transaction("rw", db.notes, async () => {
-      const all = await db.notes.toArray();
-      const dragged = all.find((n) => n.id === draggedId);
-      if (!dragged) return;
-      const fromSectionId = dragged.sectionId ?? null;
-      const target = all
-        .filter((n) => (n.sectionId ?? null) === toSectionId && n.id !== draggedId)
-        .sort(byOrder);
-      const idx = Math.max(0, Math.min(toIndex, target.length));
-      target.splice(idx, 0, dragged);
-      for (let i = 0; i < target.length; i++) {
-        const patch: Partial<Note> = { order: i };
-        if (target[i].id === draggedId) patch.sectionId = toSectionId;
-        await db.notes.update(target[i].id, patch);
-      }
-      if (fromSectionId !== toSectionId) {
-        const old = all
-          .filter(
-            (n) => (n.sectionId ?? null) === fromSectionId && n.id !== draggedId,
-          )
-          .sort(byOrder);
-        for (let i = 0; i < old.length; i++)
-          await db.notes.update(old[i].id, { order: i });
-      }
-    });
+    await moveNoteAction(draggedId, toSectionId, toIndex);
+    await reloadNotes();
   };
 
   const handleDropOnNote = (e: React.DragEvent, target: Note) => {
@@ -493,9 +471,8 @@ export default function NoteSidebar({
                   defaultValue={sec.name}
                   onFocus={(e) => e.target.select()}
                   onBlur={(e) => {
-                    db.sections.update(sec.id, {
-                      name: e.target.value.trim() || "セクション",
-                    });
+                    const name = e.target.value.trim() || "セクション";
+                    renameSection(sec.id, name).then(reloadSections);
                     setRenaming(null);
                   }}
                   onKeyDown={(e) => {

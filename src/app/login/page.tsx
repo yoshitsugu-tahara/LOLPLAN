@@ -55,6 +55,15 @@ function LoginCard() {
         </svg>
         Google でログイン
       </button>
+
+      {process.env.NODE_ENV === "development" && (
+        <button
+          onClick={() => signIn("dev", { callbackUrl: "/" })}
+          className="mt-3 flex w-full items-center justify-center rounded-lg border border-dashed border-amber-500/40 px-4 py-2 text-xs text-amber-300/80 transition hover:bg-amber-500/10"
+        >
+          🔧 開発ログイン（OWNER_EMAIL）
+        </button>
+      )}
     </div>
   );
 }

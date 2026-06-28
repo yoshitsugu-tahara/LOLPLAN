@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
-import { db } from "@/lib/db";
+import { getOrCreatePlan, updatePlan } from "@/server/actions/plans";
 import KonvaBoard from "./KonvaBoard";
 import type { Shape } from "./shapes";
 
@@ -11,33 +11,21 @@ export default function Planner({ planId }: { planId: string }) {
   const [title, setTitle] = useState("");
 
   const load = useCallback(async () => {
-    let plan = await db.plans.get(planId);
-    if (!plan) {
-      const now = Date.now();
-      plan = {
-        id: planId,
-        title: "無題のプラン",
-        snapshot: null,
-        preview: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      await db.plans.add(plan);
-    }
+    const plan = await getOrCreatePlan(planId);
     setTitle(plan.title);
     return (plan.snapshot as Shape[] | null) ?? null;
   }, [planId]);
 
   const onChange = useCallback(
     (shapes: Shape[]) => {
-      db.plans.update(planId, { snapshot: shapes, updatedAt: Date.now() });
+      updatePlan(planId, { snapshot: shapes });
     },
     [planId],
   );
 
   const updateTitle = (t: string) => {
     setTitle(t);
-    db.plans.update(planId, { title: t, updatedAt: Date.now() });
+    updatePlan(planId, { title: t });
   };
 
   return (

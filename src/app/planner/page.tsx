@@ -1,11 +1,13 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
-import { nanoid } from "nanoid";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { db } from "@/lib/db";
+import { usePlans, reloadPlans } from "@/lib/store";
+import {
+  createPlan as createPlanAction,
+  deletePlan as deletePlanAction,
+} from "@/server/actions/plans";
 
 function formatDate(ts: number) {
   const d = new Date(ts);
@@ -16,22 +18,10 @@ function formatDate(ts: number) {
 
 export default function PlannerGallery() {
   const router = useRouter();
-  const plans = useLiveQuery(
-    () => db.plans.orderBy("updatedAt").reverse().toArray(),
-    [],
-  );
+  const { data: plans } = usePlans();
 
   const createPlan = async () => {
-    const id = nanoid();
-    const now = Date.now();
-    await db.plans.add({
-      id,
-      title: "無題のプラン",
-      snapshot: null,
-      preview: null,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const id = await createPlanAction();
     router.push(`/planner/${id}`);
   };
 
@@ -39,7 +29,8 @@ export default function PlannerGallery() {
     e.preventDefault();
     e.stopPropagation();
     if (!confirm("このプランを削除しますか？")) return;
-    await db.plans.delete(id);
+    await deletePlanAction(id);
+    reloadPlans();
   };
 
   return (

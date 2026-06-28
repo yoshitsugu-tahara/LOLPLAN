@@ -97,7 +97,8 @@ export const notes = pgTable(
     title: text("title").notNull().default(""),
     content: jsonb("content"),
     sectionId: text("section_id"),
-    order: integer("order"),
+    // 新規ノートを先頭に置くため -Date.now() を入れるので integer では溢れる
+    order: bigint("order", { mode: "number" }),
     labels: text("labels").array(),
     createdAt: bigint("created_at", { mode: "number" }).notNull(),
     updatedAt: bigint("updated_at", { mode: "number" }).notNull(),

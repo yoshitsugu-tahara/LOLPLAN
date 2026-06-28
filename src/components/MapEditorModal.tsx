@@ -3,7 +3,8 @@
 import type Konva from "konva";
 import { useCallback, useRef } from "react";
 
-import { db } from "@/lib/db";
+import { reloadMap } from "@/lib/store";
+import { getMap, upsertMap } from "@/server/actions/maps";
 import { MAP_SIZE } from "./planner/data";
 import KonvaBoard from "./planner/KonvaBoard";
 import type { Shape } from "./planner/shapes";
@@ -18,13 +19,13 @@ export default function MapEditorModal({
   const stageRef = useRef<Konva.Stage | null>(null);
 
   const load = useCallback(async () => {
-    const m = await db.maps.get(mapId);
+    const m = await getMap(mapId);
     return (m?.snapshot as Shape[] | null) ?? null;
   }, [mapId]);
 
   const onChange = useCallback(
     (shapes: Shape[]) => {
-      db.maps.update(mapId, { snapshot: shapes, updatedAt: Date.now() });
+      upsertMap(mapId, { snapshot: shapes });
     },
     [mapId],
   );
@@ -54,11 +55,13 @@ export default function MapEditorModal({
         stage.scale({ x: prevScale, y: prevScale });
         stage.position(prevPos);
         stage.draw();
-        await db.maps.update(mapId, { preview, updatedAt: Date.now() });
+        await upsertMap(mapId, { preview });
       } catch {
         // 失敗は無視（スナップショットは自動保存済み）
       }
     }
+    // ノート内のサムネ（MapBlock）を最新化
+    reloadMap(mapId);
     onClose();
   };
 
