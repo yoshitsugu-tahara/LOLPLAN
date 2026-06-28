@@ -14,8 +14,12 @@ export const authConfig = {
     authorized({ auth }) {
       return !!auth?.user;
     },
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) token.id = user.id;
+      // useSession().update({ name }) で表示名を更新したとき token にも反映
+      if (trigger === "update" && typeof session?.name === "string") {
+        token.name = session.name;
+      }
       return token;
     },
     session({ session, token }) {

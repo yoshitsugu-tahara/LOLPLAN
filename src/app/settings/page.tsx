@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth, isOwner } from "@/auth";
 import { listAllowed } from "@/server/actions/allowlist";
+import DisplayNameField from "./DisplayNameField";
 import InviteManager from "./InviteManager";
 import SignOutButton from "./SignOutButton";
 
@@ -38,14 +39,7 @@ export default async function SettingsPage() {
             />
           )}
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium">
-              {session.user.name}
-              {owner && (
-                <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] text-sky-300">
-                  オーナー
-                </span>
-              )}
-            </div>
+            <DisplayNameField initial={session.user.name} isOwner={owner} />
             <div className="truncate text-xs text-zinc-500">
               {session.user.email}
             </div>
