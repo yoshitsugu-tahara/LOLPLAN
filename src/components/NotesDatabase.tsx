@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useNotes, useSections } from "@/lib/store";
 import { labelColor } from "./LabelEditor";
 import { blocksToText } from "./noteText";
+import { CardGridSkeleton, TableSkeleton } from "./Skeleton";
 
 function fmtDate(ts: number) {
   const d = new Date(ts);
@@ -49,11 +50,10 @@ export default function NotesDatabase({
     localStorage.setItem("lolnote:db-view", v);
   };
 
-  if (!notes || !sections) return null;
-
+  const loading = !notes || !sections;
   const secName = (id?: string | null) =>
-    id ? sections.find((s) => s.id === id)?.name : undefined;
-  const sorted = [...notes].sort((a, b) => b.updatedAt - a.updatedAt);
+    id ? (sections ?? []).find((s) => s.id === id)?.name : undefined;
+  const sorted = [...(notes ?? [])].sort((a, b) => b.updatedAt - a.updatedAt);
 
   const Tab = ({ id, label }: { id: "table" | "gallery"; label: string }) => (
     <button
@@ -74,7 +74,9 @@ export default function NotesDatabase({
         <h1 className="text-2xl font-bold tracking-tight text-white">
           すべてのノート
         </h1>
-        <span className="text-sm text-zinc-600">{notes.length}</span>
+        <span className="text-sm text-zinc-600">
+          {loading ? "" : sorted.length}
+        </span>
         <div className="flex-1" />
         <div className="flex items-center gap-1 rounded-lg border border-white/10 p-0.5">
           <Tab id="table" label="テーブル" />
@@ -90,13 +92,16 @@ export default function NotesDatabase({
 
       <div className="no-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-5xl px-8 pb-16">
-          {notes.length === 0 && (
+          {loading &&
+            (view === "table" ? <TableSkeleton /> : <CardGridSkeleton />)}
+
+          {!loading && sorted.length === 0 && (
             <p className="py-16 text-center text-sm text-zinc-500">
               まだノートがありません
             </p>
           )}
 
-          {view === "table" && notes.length > 0 && (
+          {!loading && view === "table" && sorted.length > 0 && (
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-y border-white/10 text-left text-xs font-medium text-zinc-500">
@@ -135,7 +140,7 @@ export default function NotesDatabase({
             </table>
           )}
 
-          {view === "gallery" && notes.length > 0 && (
+          {!loading && view === "gallery" && sorted.length > 0 && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {sorted.map((n) => {
                 const preview = blocksToText(n.content).slice(0, 140);

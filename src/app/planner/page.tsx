@@ -8,6 +8,7 @@ import {
   createPlan as createPlanAction,
   deletePlan as deletePlanAction,
 } from "@/server/actions/plans";
+import { CardGridSkeleton } from "@/components/Skeleton";
 
 function formatDate(ts: number) {
   const d = new Date(ts);
@@ -56,6 +57,8 @@ export default function PlannerGallery() {
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-8">
+        {plans === undefined && <CardGridSkeleton count={8} aspect="aspect-video" />}
+
         {plans?.length === 0 && (
           <div className="flex flex-col items-center gap-4 py-24 text-center">
             <p className="text-zinc-500">まだプランがありません</p>

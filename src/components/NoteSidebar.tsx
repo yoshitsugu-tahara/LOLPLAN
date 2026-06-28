@@ -17,6 +17,7 @@ import {
   renameSection,
 } from "@/server/actions/sections";
 import { labelColor } from "./LabelEditor";
+import { SidebarSkeleton } from "./Skeleton";
 
 const NOTE_MIME = "application/x-lolnote-note";
 
@@ -129,27 +130,23 @@ export default function NoteSidebar({
     }
   }, [notes, selectedId, onSelect, databaseActive]);
 
-  if (!notes || !sections) {
-    return (
-      <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900" />
-    );
-  }
+  const loading = !notes || !sections;
 
   // 使われている全ラベル（絞り込みチップ用）
-  const allLabels = [...new Set(notes.flatMap((n) => n.labels ?? []))].sort(
-    (a, b) => a.localeCompare(b, "ja"),
-  );
+  const allLabels = [
+    ...new Set((notes ?? []).flatMap((n) => n.labels ?? [])),
+  ].sort((a, b) => a.localeCompare(b, "ja"));
   // 選択中ラベルをすべて含むか（AND）。未選択時は全件通過
   const matches = (n: Note) =>
     filter.every((l) => (n.labels ?? []).includes(l));
   const toggleFilter = (l: string) =>
     setFilter((f) => (f.includes(l) ? f.filter((x) => x !== l) : [...f, l]));
 
-  const uncategorized = notes
+  const uncategorized = (notes ?? [])
     .filter((n) => !n.sectionId && matches(n))
     .sort(byOrder);
   const notesOf = (sid: string) =>
-    notes.filter((n) => n.sectionId === sid && matches(n)).sort(byOrder);
+    (notes ?? []).filter((n) => n.sectionId === sid && matches(n)).sort(byOrder);
 
   // --- セクション操作 ---
   const createSection = async () => {
@@ -426,14 +423,18 @@ export default function NoteSidebar({
         }
         onDrop={(e) => dropInto(e, null)}
       >
+        {loading && <SidebarSkeleton />}
+
         {/* 未分類 */}
-        <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
-          ノート
-        </div>
+        {!loading && (
+          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
+            ノート
+          </div>
+        )}
         {uncategorized.map(renderNote)}
 
         {/* セクション（絞り込み中は該当ノートが無いセクションは隠す） */}
-        {sections.map((sec) => {
+        {(sections ?? []).map((sec) => {
           const secNotes = notesOf(sec.id);
           if (filter.length && secNotes.length === 0) return null;
           return (

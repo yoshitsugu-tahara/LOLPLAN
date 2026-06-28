@@ -14,6 +14,7 @@ import LabelEditor from "./LabelEditor";
 import NoteSidebar from "./NoteSidebar";
 import NotesDatabase from "./NotesDatabase";
 import SearchModal from "./SearchModal";
+import { EditorSkeleton } from "./Skeleton";
 import TableOfContents from "./TableOfContents";
 
 const Editor = dynamic(() => import("./Editor"), { ssr: false });
@@ -210,6 +211,8 @@ export default function AppShell() {
               </div>
             </div>
           </>
+        ) : notes === undefined ? (
+          <EditorSkeleton />
         ) : (
           <div className="flex flex-1 items-center justify-center text-zinc-500">
             <div className="text-center">

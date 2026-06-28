@@ -2,6 +2,7 @@
 
 import { createReactBlockSpec } from "@blocknote/react";
 import { useMap } from "@/lib/store";
+import { Bar } from "../Skeleton";
 
 /** マップ注釈ブロックを開くようAppShellへ依頼するイベント名 */
 export const OPEN_MAP_EVENT = "lolnote:open-map";
@@ -32,7 +33,9 @@ export const MapBlock = createReactBlockSpec(
             onClick={() => mapId && openMap(mapId)}
             className="group relative block w-full overflow-hidden rounded-lg border border-white/10 bg-white/5 text-left transition hover:border-sky-400"
           >
-            {map?.preview ? (
+            {map === undefined ? (
+              <Bar className="h-40 w-full !rounded-none" />
+            ) : map?.preview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={map.preview}
