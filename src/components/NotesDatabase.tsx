@@ -30,6 +30,81 @@ function LabelChips({ labels }: { labels: string[] }) {
   );
 }
 
+/** ダークテーマに合わせた自作セレクト（ネイティブselectの置き換え） */
+function Select({
+  value,
+  options,
+  onChange,
+  minW = "min-w-[10rem]",
+}: {
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  minW?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const current = options.find((o) => o.value === value);
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-zinc-200 transition hover:bg-white/10"
+      >
+        <span className="whitespace-nowrap">{current?.label}</span>
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`shrink-0 text-zinc-500 transition ${open ? "rotate-180" : ""}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            className={`absolute left-0 z-20 mt-1 ${minW} overflow-hidden rounded-lg border border-white/10 bg-zinc-800 p-1 shadow-xl`}
+          >
+            {options.map((o) => (
+              <button
+                key={o.value}
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-white/10 ${
+                  o.value === value ? "text-sky-300" : "text-zinc-200"
+                }`}
+              >
+                <span className="truncate">{o.label}</span>
+                {o.value === value && (
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    className="shrink-0"
+                  >
+                    <path d="M5 12l5 5L20 7" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 type SortKey = "updated" | "title" | "section";
 type SortDir = "asc" | "desc";
 type Config = {
@@ -257,19 +332,15 @@ export default function NotesDatabase({
           </div>
 
           {/* セクション */}
-          <select
+          <Select
             value={cfg.section}
-            onChange={(e) => update({ section: e.target.value })}
-            className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-sky-400"
-          >
-            <option value="all">セクション: すべて</option>
-            <option value="none">未分類</option>
-            {(sections ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => update({ section: v })}
+            options={[
+              { value: "all", label: "セクション: すべて" },
+              { value: "none", label: "未分類" },
+              ...(sections ?? []).map((s) => ({ value: s.id, label: s.name })),
+            ]}
+          />
 
           {/* ラベル絞り込み */}
           {allLabels.length > 0 && (
@@ -348,15 +419,15 @@ export default function NotesDatabase({
           {/* ソート（ギャラリーはヘッダが無いのでここで） */}
           {view === "gallery" && (
             <div className="flex items-center gap-1">
-              <select
+              <Select
                 value={cfg.sortKey}
-                onChange={(e) => update({ sortKey: e.target.value as SortKey })}
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-zinc-200 outline-none focus:border-sky-400"
-              >
-                <option value="updated">並び: 更新</option>
-                <option value="title">並び: タイトル</option>
-                <option value="section">並び: セクション</option>
-              </select>
+                onChange={(v) => update({ sortKey: v as SortKey })}
+                options={[
+                  { value: "updated", label: "並び: 更新" },
+                  { value: "title", label: "並び: タイトル" },
+                  { value: "section", label: "並び: セクション" },
+                ]}
+              />
               <button
                 onClick={() =>
                   update({ sortDir: cfg.sortDir === "asc" ? "desc" : "asc" })
