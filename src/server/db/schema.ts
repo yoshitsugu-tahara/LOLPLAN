@@ -123,6 +123,18 @@ export const maps = pgTable(
   (t) => [index("map_user_idx").on(t.userId)],
 );
 
+/** お気に入りチャンピオン（プランナーと練習ログで共有・端末横断） */
+export const favoriteChampions = pgTable(
+  "favorite_champion",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    championId: text("champion_id").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.championId] })],
+);
+
 // ───────────────────────── 練習ループ（意識・試合ログ） ─────────────────────────
 
 /** 今の「意識」項目（サブモニターHUDに出す） */

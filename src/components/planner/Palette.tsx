@@ -7,6 +7,11 @@ import {
   championIcon,
   getChampions,
 } from "@/lib/ddragon";
+import { reloadFavoriteChampions, useFavoriteChampions } from "@/lib/store";
+import {
+  addFavoriteChampions,
+  toggleFavoriteChampion,
+} from "@/server/actions/favorites";
 import {
   DND_MIME,
   NUMBERS,
@@ -21,20 +26,13 @@ import {
 
 const FAV_KEY = "lolnote:champ-favorites";
 
-function loadFavs(): Set<string> {
-  if (typeof window === "undefined") return new Set();
+// 旧localStorageのお気に入り（Neonへ一度だけ移行するために読む）
+function loadLegacyFavs(): string[] {
+  if (typeof window === "undefined") return [];
   try {
-    return new Set(JSON.parse(localStorage.getItem(FAV_KEY) ?? "[]"));
+    return JSON.parse(localStorage.getItem(FAV_KEY) ?? "[]");
   } catch {
-    return new Set();
-  }
-}
-
-function saveFavs(s: Set<string>) {
-  try {
-    localStorage.setItem(FAV_KEY, JSON.stringify([...s]));
-  } catch {
-    // localStorage 不可なら諦める（お気に入りが永続化されないだけ）
+    return [];
   }
 }
 
@@ -161,7 +159,8 @@ export default function Palette({
 }) {
   const [champions, setChampions] = useState<Champion[]>([]);
   const [query, setQuery] = useState("");
-  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavs());
+  const { data: favData } = useFavoriteChampions();
+  const favorites = useMemo(() => new Set(favData ?? []), [favData]);
 
   useEffect(() => {
     getChampions()
@@ -169,14 +168,22 @@ export default function Palette({
       .catch(() => setChampions([]));
   }, []);
 
-  const toggleFav = (id: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      saveFavs(next);
-      return next;
-    });
+  // 旧localStorageのお気に入りを一度だけNeonへ取り込む
+  useEffect(() => {
+    if (localStorage.getItem("lolnote:fav-migrated")) return;
+    const legacy = loadLegacyFavs();
+    (async () => {
+      if (legacy.length) {
+        await addFavoriteChampions(legacy);
+        reloadFavoriteChampions();
+      }
+      localStorage.setItem("lolnote:fav-migrated", "1");
+    })();
+  }, []);
+
+  const toggleFav = async (id: string) => {
+    await toggleFavoriteChampion(id);
+    reloadFavoriteChampions();
   };
 
   const filtered = useMemo(() => {

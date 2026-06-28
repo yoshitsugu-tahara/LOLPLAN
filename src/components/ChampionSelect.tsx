@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { championIcon, getChampions, getVersion, type Champion } from "@/lib/ddragon";
+import { reloadFavoriteChampions, useFavoriteChampions } from "@/lib/store";
+import { toggleFavoriteChampion } from "@/server/actions/favorites";
 
 // チャンピオン一覧＋バージョンをモジュールキャッシュで一度だけ取得する
 let cache: { version: string; champions: Champion[] } | null = null;
@@ -54,6 +56,48 @@ export function ChampionIcon({
   );
 }
 
+/** 1マス（アイコン＋お気に入り星） */
+function Cell({
+  c,
+  value,
+  fav,
+  onPick,
+}: {
+  c: Champion;
+  value: string;
+  fav: boolean;
+  onPick: (id: string) => void;
+}) {
+  return (
+    <div className="group relative aspect-square">
+      <button
+        title={c.name}
+        onClick={() => onPick(c.id)}
+        className={`block h-full w-full overflow-hidden rounded-md border-2 transition hover:border-sky-400 ${
+          c.id === value ? "border-sky-400" : "border-transparent"
+        }`}
+      >
+        <ChampionIcon id={c.id} className="h-full w-full" />
+      </button>
+      <button
+        onClick={async (e) => {
+          e.stopPropagation();
+          await toggleFavoriteChampion(c.id);
+          reloadFavoriteChampions();
+        }}
+        title={fav ? "お気に入り解除" : "お気に入りに追加"}
+        className={`absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded bg-black/55 text-[10px] leading-none transition ${
+          fav
+            ? "text-yellow-400 opacity-100"
+            : "text-white opacity-0 group-hover:opacity-100"
+        }`}
+      >
+        {fav ? "★" : "☆"}
+      </button>
+    </div>
+  );
+}
+
 export default function ChampionSelect({
   value,
   onChange,
@@ -62,11 +106,13 @@ export default function ChampionSelect({
   onChange: (id: string) => void;
 }) {
   const data = useChampions();
+  const { data: favs } = useFavoriteChampions();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
   const champions = data?.champions ?? [];
   const selected = champions.find((c) => c.id === value);
+  const favSet = new Set(favs ?? []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -76,6 +122,15 @@ export default function ChampionSelect({
         c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q),
     );
   }, [champions, query]);
+
+  const favChamps = champions.filter((c) => favSet.has(c.id));
+  const showFav = !query.trim() && favChamps.length > 0;
+
+  const pick = (id: string) => {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  };
 
   return (
     <div className="relative">
@@ -138,28 +193,44 @@ export default function ChampionSelect({
                 読み込み中…
               </p>
             ) : (
-              <div className="no-scrollbar grid max-h-56 grid-cols-6 gap-1 overflow-y-auto">
-                {filtered.map((c) => (
-                  <button
-                    key={c.id}
-                    title={c.name}
-                    onClick={() => {
-                      onChange(c.id);
-                      setOpen(false);
-                      setQuery("");
-                    }}
-                    className={`aspect-square overflow-hidden rounded-md border-2 transition hover:border-sky-400 ${
-                      c.id === value ? "border-sky-400" : "border-transparent"
-                    }`}
-                  >
-                    <ChampionIcon id={c.id} className="h-full w-full" />
-                  </button>
-                ))}
-                {filtered.length === 0 && (
-                  <p className="col-span-6 py-3 text-center text-xs text-zinc-500">
-                    該当なし
-                  </p>
+              <div className="no-scrollbar max-h-56 overflow-y-auto">
+                {showFav && (
+                  <>
+                    <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/80">
+                      ★ お気に入り
+                    </div>
+                    <div className="mb-2 grid grid-cols-6 gap-1">
+                      {favChamps.map((c) => (
+                        <Cell
+                          key={c.id}
+                          c={c}
+                          value={value}
+                          fav
+                          onPick={pick}
+                        />
+                      ))}
+                    </div>
+                    <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                      すべて
+                    </div>
+                  </>
                 )}
+                <div className="grid grid-cols-6 gap-1">
+                  {filtered.map((c) => (
+                    <Cell
+                      key={c.id}
+                      c={c}
+                      value={value}
+                      fav={favSet.has(c.id)}
+                      onPick={pick}
+                    />
+                  ))}
+                  {filtered.length === 0 && (
+                    <p className="col-span-6 py-3 text-center text-xs text-zinc-500">
+                      該当なし
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>

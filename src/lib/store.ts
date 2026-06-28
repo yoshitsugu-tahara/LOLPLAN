@@ -6,6 +6,7 @@ import { listNotes } from "@/server/actions/notes";
 import { listPlans } from "@/server/actions/plans";
 import { listSections } from "@/server/actions/sections";
 import { getMap } from "@/server/actions/maps";
+import { listFavoriteChampions } from "@/server/actions/favorites";
 import {
   listFocuses,
   listGames,
@@ -21,6 +22,7 @@ export const KEY = {
   focuses: "focuses",
   games: "games",
   mistakeStats: "mistakeStats",
+  favChampions: "favChampions",
 };
 
 export function useNotes() {
@@ -52,6 +54,11 @@ export function useMistakeStats() {
     mistakeStats(),
   );
 }
+export function useFavoriteChampions() {
+  return useSWR<string[]>(KEY.favChampions, () => listFavoriteChampions());
+}
+export const reloadFavoriteChampions = () => mutate(KEY.favChampions);
+
 export const reloadFocuses = () => mutate(KEY.focuses);
 export const reloadGames = () => {
   mutate(KEY.games);
