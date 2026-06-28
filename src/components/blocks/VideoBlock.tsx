@@ -14,6 +14,8 @@ export const VideoBlock = createReactBlockSpec(
       mode: { default: "embed", values: ["ask", "embed"] as const },
       // 折りたたみ状態（デフォルトは展開）
       collapsed: { default: false },
+      // シンプル表示（コントロールバー非表示。デフォルトは通常表示）
+      simple: { default: false },
     },
     content: "none",
   },
@@ -21,7 +23,7 @@ export const VideoBlock = createReactBlockSpec(
     render: ({ block, editor }) => {
       const url = block.props.url;
       const mode = block.props.mode;
-      const embed = url ? toEmbedUrl(url) : null;
+      const embed = url ? toEmbedUrl(url, block.props.simple) : null;
       const ytId = youtubeId(url);
 
       // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -113,31 +115,65 @@ export const VideoBlock = createReactBlockSpec(
           );
         }
 
+        const simple = block.props.simple;
+        const toggleSimple = () =>
+          editor.updateBlock(block, {
+            type: "video",
+            props: { ...block.props, simple: !simple },
+          });
+
         return (
           <div className="group my-1 w-full" data-content-type="video">
             <div className="relative w-full overflow-hidden rounded-lg bg-black aspect-video">
-              {/* 折りたたみボタン（ホバーで表示） */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleCollapsed();
-                }}
-                title="折りたたむ"
-                className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white opacity-0 transition hover:bg-black/80 group-hover:opacity-100"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              {/* 右上のコントロール（ホバーで表示） */}
+              <div className="absolute right-2 top-2 z-10 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSimple();
+                  }}
+                  title={simple ? "通常表示（バーあり）" : "シンプル表示（バーなし）"}
+                  className={`flex h-7 w-7 items-center justify-center rounded-md text-white transition ${
+                    simple
+                      ? "bg-sky-500/80 hover:bg-sky-500"
+                      : "bg-black/60 hover:bg-black/80"
+                  }`}
                 >
-                  <path d="m18 15-6-6-6 6" />
-                </svg>
-              </button>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M4 6h16M4 12h16M4 18h10" />
+                  </svg>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleCollapsed();
+                  }}
+                  title="折りたたむ"
+                  className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white transition hover:bg-black/80"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m18 15-6-6-6 6" />
+                  </svg>
+                </button>
+              </div>
               {ytId && !playing ? (
                 // クリックするまではクリーンなサムネ＋再生ボタンだけ表示
                 <button
