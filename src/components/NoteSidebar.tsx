@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import {
+  patchNotes,
   reloadNotes,
   reloadSections,
   useNotes,
@@ -31,6 +32,41 @@ function byOrder(a: Note, b: Note) {
   const bo = b.order ?? 0;
   if (ao !== bo) return ao - bo;
   return b.updatedAt - a.updatedAt;
+}
+
+/** サーバの moveNote と同じ並べ替えをクライアント側で適用（楽観的更新用） */
+function applyMove(
+  all: Note[],
+  draggedId: string,
+  toSectionId: string | null,
+  toIndex: number,
+): Note[] {
+  const dragged = all.find((n) => n.id === draggedId);
+  if (!dragged) return all;
+  const fromSectionId = dragged.sectionId ?? null;
+  const target = all
+    .filter((n) => (n.sectionId ?? null) === toSectionId && n.id !== draggedId)
+    .sort(byOrder);
+  const idx = Math.max(0, Math.min(toIndex, target.length));
+  target.splice(idx, 0, dragged);
+
+  const orderMap = new Map<string, number>();
+  target.forEach((n, i) => orderMap.set(n.id, i));
+  if (fromSectionId !== toSectionId) {
+    const old = all
+      .filter(
+        (n) => (n.sectionId ?? null) === fromSectionId && n.id !== draggedId,
+      )
+      .sort(byOrder);
+    old.forEach((n, i) => orderMap.set(n.id, i));
+  }
+  return all.map((n) => {
+    const order = orderMap.has(n.id) ? orderMap.get(n.id)! : n.order;
+    const sectionId = n.id === draggedId ? toSectionId : n.sectionId;
+    return order !== n.order || sectionId !== n.sectionId
+      ? { ...n, order, sectionId }
+      : n;
+  });
 }
 
 function PageIcon() {
@@ -170,8 +206,9 @@ export default function NoteSidebar({
     toSectionId: string | null,
     toIndex: number,
   ) => {
+    // 先に並べ替えを反映（楽観的）→ 裏でサーバ更新。再フェッチはしない。
+    patchNotes((cur) => applyMove(cur, draggedId, toSectionId, toIndex));
     await moveNoteAction(draggedId, toSectionId, toIndex);
-    await reloadNotes();
   };
 
   const handleDropOnNote = (e: React.DragEvent, target: Note) => {

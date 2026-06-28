@@ -1,9 +1,11 @@
 "use client";
 
+import { nanoid } from "nanoid";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { patchNoteCache, reloadNotes, useNotes } from "@/lib/store";
+import { patchNoteCache, patchNotes, useNotes } from "@/lib/store";
+import type { Note } from "@/lib/types";
 import {
   createNote as createNoteAction,
   deleteNote as deleteNoteAction,
@@ -96,16 +98,33 @@ export default function AppShell() {
   }, []);
 
   const createNote = async () => {
-    const id = await createNoteAction();
-    await reloadNotes();
+    const id = nanoid();
+    const now = Date.now();
+    // まず画面を即更新（楽観的）。保存とサーバ再取得は裏で。
+    const optimistic: Note = {
+      id,
+      title: "無題のノート",
+      content: null,
+      sectionId: null,
+      order: -now,
+      labels: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    patchNotes((cur) => [optimistic, ...cur]);
     setSelectedId(id);
+    setMode("editor");
+    // 保存は裏で。再フェッチはしない（楽観キャッシュが正。直後のタイトル入力を
+    // 背景フェッチが上書きするのを防ぐ。整合はSWRのフォーカス再検証で取る）
+    await createNoteAction(id);
   };
 
   const deleteNote = async (id: string) => {
     if (!confirm("このノートを削除しますか？")) return;
-    await deleteNoteAction(id);
-    await reloadNotes();
+    // 先に消す（楽観的）→ 裏で削除
+    patchNotes((cur) => cur.filter((n) => n.id !== id));
     if (selectedId === id) setSelectedId(null);
+    await deleteNoteAction(id);
   };
 
   // タイトルは打鍵ごとにDB書き込みすると重いのでデバウンス保存。

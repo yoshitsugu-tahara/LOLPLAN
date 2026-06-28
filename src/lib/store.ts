@@ -79,3 +79,8 @@ export function patchNoteCache(id: string, patch: Partial<Note>) {
     false,
   );
 }
+
+/** notes 一覧を楽観的に書き換える（再フェッチなし）。作成/移動/削除の即時反映に使う。 */
+export function patchNotes(updater: (cur: Note[]) => Note[]) {
+  mutate(KEY.notes, (cur?: Note[]) => updater(cur ?? []), false);
+}

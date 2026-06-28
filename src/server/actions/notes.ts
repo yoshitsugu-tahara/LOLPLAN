@@ -21,12 +21,12 @@ export async function listNotes(): Promise<Note[]> {
   return rows as Note[];
 }
 
-export async function createNote(): Promise<string> {
+export async function createNote(id?: string): Promise<string> {
   const uid = await getUserId();
-  const id = nanoid();
+  const noteId = id ?? nanoid();
   const now = Date.now();
   await db.insert(notes).values({
-    id,
+    id: noteId,
     userId: uid,
     title: "無題のノート",
     content: null,
@@ -36,7 +36,7 @@ export async function createNote(): Promise<string> {
     createdAt: now,
     updatedAt: now,
   });
-  return id;
+  return noteId;
 }
 
 export async function updateNote(
