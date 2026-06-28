@@ -183,7 +183,7 @@ export default function AppShell() {
             }}
           />
         ) : selected ? (
-          <>
+          <div className="flex-1 overflow-y-auto pb-32">
             <div className="mx-auto w-full max-w-3xl px-[54px] pt-16 pb-8">
               <input
                 value={titleDraft}
@@ -200,17 +200,15 @@ export default function AppShell() {
               </div>
               <TableOfContents content={selected.content} />
             </div>
-            <div className="flex-1 overflow-y-auto pb-32">
-              <div className="mx-auto w-full max-w-3xl">
-                <Editor
-                  key={selected.id}
-                  note={selected}
-                  findOpen={findOpen}
-                  onFindClose={() => setFindOpen(false)}
-                />
-              </div>
+            <div className="mx-auto w-full max-w-3xl">
+              <Editor
+                key={selected.id}
+                note={selected}
+                findOpen={findOpen}
+                onFindClose={() => setFindOpen(false)}
+              />
             </div>
-          </>
+          </div>
         ) : notes === undefined ? (
           <EditorSkeleton />
         ) : (
