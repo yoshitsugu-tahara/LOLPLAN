@@ -88,6 +88,8 @@ export default function NoteSidebar({
   onDeleteNote,
   onToggleSidebar,
   onOpenSearch,
+  onOpenDatabase,
+  databaseActive = false,
 }: {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -95,6 +97,8 @@ export default function NoteSidebar({
   onDeleteNote: (id: string) => void;
   onToggleSidebar: () => void;
   onOpenSearch: () => void;
+  onOpenDatabase: () => void;
+  databaseActive?: boolean;
 }) {
   const notes = useLiveQuery(() => db.notes.toArray(), []);
   const sections = useLiveQuery(
@@ -107,15 +111,16 @@ export default function NoteSidebar({
   // 絞り込み中のラベル（複数選択＝すべて含むノートのみ表示）
   const [filter, setFilter] = useState<string[]>([]);
 
-  // 最初のノートを自動選択
+  // 最初のノートを自動選択（DB一覧表示中は勝手にエディタへ戻さない）
   useEffect(() => {
+    if (databaseActive) return;
     if (!selectedId && notes && notes.length) {
       const top =
         [...notes].filter((n) => !n.sectionId).sort(byOrder)[0] ??
         [...notes].sort(byOrder)[0];
       if (top) onSelect(top.id);
     }
-  }, [notes, selectedId, onSelect]);
+  }, [notes, selectedId, onSelect, databaseActive]);
 
   if (!notes || !sections) {
     return (
@@ -361,6 +366,27 @@ export default function NoteSidebar({
         <kbd className="rounded bg-white/10 px-1 text-[10px] text-zinc-500">
           Ctrl ⇧ F
         </kbd>
+      </button>
+
+      <button
+        onClick={onOpenDatabase}
+        className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
+      >
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="shrink-0"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18M3 15h18M9 3v18" />
+        </svg>
+        <span>すべてのノート</span>
       </button>
 
       <Link

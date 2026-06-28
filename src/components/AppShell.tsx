@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { OPEN_MAP_EVENT } from "./blocks/MapBlock";
 import LabelEditor from "./LabelEditor";
 import NoteSidebar from "./NoteSidebar";
+import NotesDatabase from "./NotesDatabase";
 import SearchModal from "./SearchModal";
 import TableOfContents from "./TableOfContents";
 
@@ -24,6 +25,7 @@ export default function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  const [mode, setMode] = useState<"editor" | "database">("editor");
   // タイトル入力はローカルstateで持つ（DB(liveQuery)を value にすると
   // 日本語IMEの変換中に値が裏で書き換わって文字化け・増殖する）
   const [titleDraft, setTitleDraft] = useState("");
@@ -127,12 +129,17 @@ export default function AppShell() {
       {/* サイドバー */}
       {sidebarOpen && (
         <NoteSidebar
-          selectedId={selectedId}
-          onSelect={setSelectedId}
+          selectedId={mode === "database" ? null : selectedId}
+          databaseActive={mode === "database"}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setMode("editor");
+          }}
           onCreateNote={createNote}
           onDeleteNote={deleteNote}
           onToggleSidebar={toggleSidebar}
           onOpenSearch={() => setSearchOpen(true)}
+          onOpenDatabase={() => setMode("database")}
         />
       )}
 
@@ -160,7 +167,18 @@ export default function AppShell() {
             </svg>
           </button>
         )}
-        {selected ? (
+        {mode === "database" ? (
+          <NotesDatabase
+            onOpen={(id) => {
+              setSelectedId(id);
+              setMode("editor");
+            }}
+            onCreate={() => {
+              createNote();
+              setMode("editor");
+            }}
+          />
+        ) : selected ? (
           <>
             <div className="mx-auto w-full max-w-3xl px-[54px] pt-16 pb-8">
               <input
