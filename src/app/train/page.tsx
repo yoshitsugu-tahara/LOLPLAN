@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import ChampionSelect, {
+  ChampionIcon,
+  useChampions,
+} from "@/components/ChampionSelect";
 import {
   reloadFocuses,
   reloadGames,
@@ -200,12 +204,7 @@ function GameForm() {
             {r.label}
           </Pill>
         ))}
-        <input
-          value={champion}
-          onChange={(e) => setChampion(e.target.value)}
-          placeholder="チャンプ"
-          className="w-28 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-sky-400"
-        />
+        <ChampionSelect value={champion} onChange={setChampion} />
       </div>
 
       {/* 意識スコア */}
@@ -286,6 +285,9 @@ function GameForm() {
 // ───────────── 最近の試合 ─────────────
 function RecentGames() {
   const { data: games } = useGames();
+  const champData = useChampions();
+  const champName = (id?: string | null) =>
+    (id && champData?.champions.find((c) => c.id === id)?.name) || id || "";
   const list = games ?? [];
   // 今日の戦績
   const start = new Date();
@@ -329,8 +331,15 @@ function RecentGames() {
             <span className="w-9 shrink-0 text-xs text-zinc-500">
               {roleLabel(g.role)}
             </span>
-            <span className="w-20 shrink-0 truncate text-zinc-300">
-              {g.champion || "—"}
+            <span className="flex w-24 shrink-0 items-center gap-1.5 text-zinc-300">
+              {g.champion ? (
+                <>
+                  <ChampionIcon id={g.champion} className="h-5 w-5" />
+                  <span className="truncate">{champName(g.champion)}</span>
+                </>
+              ) : (
+                <span className="text-zinc-600">—</span>
+              )}
             </span>
             <span className="min-w-0 flex-1 truncate text-zinc-500">
               {g.mistake ? `✕ ${g.mistake}` : g.good ? `◎ ${g.good}` : ""}
