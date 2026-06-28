@@ -141,7 +141,7 @@ export default function NoteSidebar({
 }: {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  onCreateNote: () => void;
+  onCreateNote: (sectionId?: string | null) => void;
   onDeleteNote: (id: string) => void;
   onToggleSidebar: () => void;
   onOpenSearch: () => void;
@@ -331,7 +331,7 @@ export default function NoteSidebar({
         </span>
         <div className="flex items-center gap-0.5">
           <button
-            onClick={onCreateNote}
+            onClick={() => onCreateNote()}
             title="新規ノート"
             className="flex h-7 w-7 items-center justify-center rounded-md text-lg text-zinc-400 transition hover:bg-white/10 hover:text-white"
           >
@@ -453,8 +453,15 @@ export default function NoteSidebar({
 
         {/* 未分類 */}
         {!loading && (
-          <div className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
-            ノート
+          <div className="group/sec mb-1 flex items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
+            <span className="flex-1">ノート</span>
+            <button
+              onClick={() => onCreateNote(null)}
+              title="ノートをここに追加"
+              className="flex h-4 w-4 items-center justify-center rounded text-sm leading-none text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
+            >
+              ＋
+            </button>
           </div>
         )}
         {uncategorized.map(renderNote)}
@@ -488,7 +495,7 @@ export default function NoteSidebar({
                 setDropTarget({ id: `sec-${sec.id}`, pos: "into" });
               }}
               onDrop={(e) => dropInto(e, sec.id)}
-              className={`mb-1 rounded px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 ${
+              className={`group/sec mb-1 flex items-center gap-1 rounded px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 ${
                 dropTarget?.id === `sec-${sec.id}` ? "bg-sky-500/20" : ""
               }`}
             >
@@ -509,12 +516,24 @@ export default function NoteSidebar({
                   className="w-full bg-transparent py-1 uppercase text-white outline-none"
                 />
               ) : (
-                <span
-                  className="block cursor-default py-1"
-                  onDoubleClick={() => setRenaming(sec.id)}
-                >
-                  {sec.name}
-                </span>
+                <>
+                  <span
+                    className="flex-1 cursor-default py-1"
+                    onDoubleClick={() => setRenaming(sec.id)}
+                  >
+                    {sec.name}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCreateNote(sec.id);
+                    }}
+                    title="ノートをここに追加"
+                    className="flex h-4 w-4 items-center justify-center rounded text-sm leading-none text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
+                  >
+                    ＋
+                  </button>
+                </>
               )}
             </div>
             {secNotes.map(renderNote)}

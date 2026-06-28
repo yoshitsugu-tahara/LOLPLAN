@@ -21,7 +21,10 @@ export async function listNotes(): Promise<Note[]> {
   return rows as Note[];
 }
 
-export async function createNote(id?: string): Promise<string> {
+export async function createNote(
+  id?: string,
+  sectionId?: string | null,
+): Promise<string> {
   const uid = await getUserId();
   const noteId = id ?? nanoid();
   const now = Date.now();
@@ -30,8 +33,8 @@ export async function createNote(id?: string): Promise<string> {
     userId: uid,
     title: "無題のノート",
     content: null,
-    sectionId: null,
-    order: -now, // 新規は未分類の先頭に
+    sectionId: sectionId ?? null,
+    order: -now, // 新規はそのグループの先頭に
     labels: [],
     createdAt: now,
     updatedAt: now,

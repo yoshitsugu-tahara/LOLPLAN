@@ -97,15 +97,15 @@ export default function AppShell() {
     return () => window.removeEventListener(OPEN_MAP_EVENT, handler);
   }, []);
 
-  const createNote = async () => {
+  const createNote = async (sectionId: string | null = null) => {
     const id = nanoid();
     const now = Date.now();
-    // まず画面を即更新（楽観的）。保存とサーバ再取得は裏で。
+    // まず画面を即更新（楽観的）。保存は裏で。
     const optimistic: Note = {
       id,
       title: "無題のノート",
       content: null,
-      sectionId: null,
+      sectionId,
       order: -now,
       labels: [],
       createdAt: now,
@@ -114,9 +114,9 @@ export default function AppShell() {
     patchNotes((cur) => [optimistic, ...cur]);
     setSelectedId(id);
     setMode("editor");
-    // 保存は裏で。再フェッチはしない（楽観キャッシュが正。直後のタイトル入力を
+    // 再フェッチはしない（楽観キャッシュが正。直後のタイトル入力を
     // 背景フェッチが上書きするのを防ぐ。整合はSWRのフォーカス再検証で取る）
-    await createNoteAction(id);
+    await createNoteAction(id, sectionId);
   };
 
   const deleteNote = async (id: string) => {
@@ -235,7 +235,7 @@ export default function AppShell() {
             <div className="text-center">
               <p className="mb-3">ノートを選択するか、新規作成してください</p>
               <button
-                onClick={createNote}
+                onClick={() => createNote()}
                 className="rounded bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-400"
               >
                 ＋ 新しいノート
