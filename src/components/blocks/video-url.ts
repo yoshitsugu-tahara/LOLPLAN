@@ -1,6 +1,7 @@
-// 関連動画(同チャンネルのみ)・注釈オフ・ブランディング控えめで、
-// 動画に重なるYouTube側のUIをできるだけ減らす。
-const YT_PARAMS = "rel=0&modestbranding=1&iv_load_policy=3&color=white";
+// 関連動画(同チャンネルのみ)・注釈オフ・字幕の自動表示オフ・ブランディング
+// 控えめで、動画に重なるYouTube側のUIをできるだけ減らす。
+const YT_PARAMS =
+  "rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0&color=white";
 
 function ytEmbed(id: string): string {
   // youtube-nocookie でトラッキングも抑えつつクリーンに表示
