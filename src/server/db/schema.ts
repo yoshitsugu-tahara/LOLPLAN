@@ -123,6 +123,48 @@ export const maps = pgTable(
   (t) => [index("map_user_idx").on(t.userId)],
 );
 
+// ───────────────────────── 練習ループ（意識・試合ログ） ─────────────────────────
+
+/** 今の「意識」項目（サブモニターHUDに出す） */
+export const focuses = pgTable(
+  "focus",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    order: integer("order").notNull().default(0),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  },
+  (t) => [index("focus_user_idx").on(t.userId)],
+);
+
+/** 1試合の高速振り返りログ */
+export const games = pgTable(
+  "game",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    result: text("result").notNull(), // 'win' | 'lose'
+    champion: text("champion"),
+    role: text("role"), // 'top'|'jungle'|'mid'|'adc'|'support'
+    focusScore: text("focus_score"), // 'good'|'ok'|'bad'
+    good: text("good"),
+    mistake: text("mistake"),
+    tags: text("tags").array(),
+    nextFocus: text("next_focus"),
+    playedAt: bigint("played_at", { mode: "number" }).notNull(),
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  },
+  (t) => [
+    index("game_user_idx").on(t.userId),
+    index("game_user_played_idx").on(t.userId, t.playedAt),
+  ],
+);
+
 export const plans = pgTable(
   "plan",
   {

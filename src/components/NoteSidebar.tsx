@@ -368,6 +368,13 @@ export default function NoteSidebar({
       </button>
 
       <Link
+        href="/train"
+        className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
+      >
+        🎯 <span>練習ループ</span>
+      </Link>
+
+      <Link
         href="/planner"
         className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
       >

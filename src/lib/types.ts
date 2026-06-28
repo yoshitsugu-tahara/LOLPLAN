@@ -43,3 +43,32 @@ export type PlanMeta = Pick<
   Plan,
   "id" | "title" | "preview" | "createdAt" | "updatedAt"
 >;
+
+// ───────────── 練習ループ ─────────────
+
+export interface Focus {
+  id: string;
+  userId?: string;
+  text: string;
+  order: number;
+  createdAt: number;
+}
+
+export type GameResult = "win" | "lose";
+export type FocusScore = "good" | "ok" | "bad";
+export type Role = "top" | "jungle" | "mid" | "adc" | "support";
+
+export interface Game {
+  id: string;
+  userId?: string;
+  result: GameResult;
+  champion: string | null;
+  role: string | null;
+  focusScore: string | null;
+  good: string | null;
+  mistake: string | null;
+  tags: string[] | null;
+  nextFocus: string | null;
+  playedAt: number;
+  createdAt: number;
+}

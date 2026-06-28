@@ -6,13 +6,21 @@ import { listNotes } from "@/server/actions/notes";
 import { listPlans } from "@/server/actions/plans";
 import { listSections } from "@/server/actions/sections";
 import { getMap } from "@/server/actions/maps";
-import type { Note, Section, PlanMeta, MapBoard } from "./types";
+import {
+  listFocuses,
+  listGames,
+  mistakeStats,
+} from "@/server/actions/training";
+import type { Note, Section, PlanMeta, MapBoard, Focus, Game } from "./types";
 
 export const KEY = {
   notes: "notes",
   sections: "sections",
   plans: "plans",
   map: (id: string) => ["map", id] as const,
+  focuses: "focuses",
+  games: "games",
+  mistakeStats: "mistakeStats",
 };
 
 export function useNotes() {
@@ -32,6 +40,23 @@ export function useMap(id: string | null) {
     getMap(id as string),
   );
 }
+
+export function useFocuses() {
+  return useSWR<Focus[]>(KEY.focuses, () => listFocuses());
+}
+export function useGames() {
+  return useSWR<Game[]>(KEY.games, () => listGames());
+}
+export function useMistakeStats() {
+  return useSWR<{ tag: string; count: number }[]>(KEY.mistakeStats, () =>
+    mistakeStats(),
+  );
+}
+export const reloadFocuses = () => mutate(KEY.focuses);
+export const reloadGames = () => {
+  mutate(KEY.games);
+  mutate(KEY.mistakeStats);
+};
 
 export const reloadNotes = () => mutate(KEY.notes);
 export const reloadSections = () => mutate(KEY.sections);
