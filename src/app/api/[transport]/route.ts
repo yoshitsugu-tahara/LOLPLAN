@@ -6,7 +6,7 @@ import { blocksToText } from "@/components/noteText";
 import { getOrigin } from "@/lib/origin";
 import { roleLabel } from "@/lib/training-data";
 import { db } from "@/server/db";
-import { focuses, games, notes } from "@/server/db/schema";
+import { focuses, games, notes, sections } from "@/server/db/schema";
 import { mcpResource, verifyAccessToken } from "@/server/oauth";
 
 export const runtime = "nodejs";
@@ -21,26 +21,69 @@ function uid(extra: { authInfo?: { extra?: Record<string, unknown> } }): string 
   return extra.authInfo?.extra?.userId as string;
 }
 
+/** sectionId → セクション名 のマップ */
+async function sectionMap(userId: string): Promise<Map<string, string>> {
+  const secs = await db
+    .select()
+    .from(sections)
+    .where(eq(sections.userId, userId));
+  return new Map(secs.map((s) => [s.id, s.name]));
+}
+const secName = (m: Map<string, string>, id: string | null) =>
+  id ? (m.get(id) ?? "?") : "未分類";
+
 const handler = createMcpHandler(
   (server) => {
     server.tool(
+      "list_notes",
+      "全ノートをセクション分類つきで一覧する（タイトルと所属セクション）。セクション名(例:「日記」「見た動画」)で絞り込み可、未指定で全件。",
+      { section: z.string().optional().describe("セクション名で絞り込み（任意）") },
+      async ({ section }, extra) => {
+        const userId = uid(extra);
+        const m = await sectionMap(userId);
+        let rows = await db.select().from(notes).where(eq(notes.userId, userId));
+        if (section) {
+          const s = section.trim();
+          rows = rows.filter((n) => secName(m, n.sectionId) === s);
+        }
+        rows.sort((a, b) => b.updatedAt - a.updatedAt);
+        const lines = rows.map(
+          (n) =>
+            `- [${n.id}] (${secName(m, n.sectionId)}) ${n.title || "無題のノート"} — ${fmtDate(n.updatedAt)}`,
+        );
+        return {
+          content: [
+            { type: "text", text: lines.length ? lines.join("\n") : "該当なし" },
+          ],
+        };
+      },
+    );
+
+    server.tool(
       "search_notes",
-      "lolnoteのノートを全文検索する（タイトル＋本文）。LOLの戦略・振り返りメモが入っている。",
+      "lolnoteのノートを全文検索する（タイトル＋本文＋セクション名）。LOLの戦略・振り返り・日記メモが入っている。",
       { query: z.string().describe("検索キーワード") },
       async ({ query }, extra) => {
         const userId = uid(extra);
+        const m = await sectionMap(userId);
         const rows = await db.select().from(notes).where(eq(notes.userId, userId));
         const q = query.trim().toLowerCase();
         const hits = rows
           .filter((n) =>
-            ((n.title || "") + "\n" + blocksToText(n.content))
+            (
+              (n.title || "") +
+              "\n" +
+              secName(m, n.sectionId) +
+              "\n" +
+              blocksToText(n.content)
+            )
               .toLowerCase()
               .includes(q),
           )
           .slice(0, 20)
           .map(
             (n) =>
-              `- [${n.id}] ${n.title || "無題のノート"}: ${blocksToText(n.content).slice(0, 120)}`,
+              `- [${n.id}] (${secName(m, n.sectionId)}) ${n.title || "無題のノート"}: ${blocksToText(n.content).slice(0, 120)}`,
           );
         return {
           content: [
