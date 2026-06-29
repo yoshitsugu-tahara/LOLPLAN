@@ -123,6 +123,42 @@ export const maps = pgTable(
   (t) => [index("map_user_idx").on(t.userId)],
 );
 
+// ───────────────────────── MCP OAuth（認可サーバ） ─────────────────────────
+
+/** 動的クライアント登録(DCR)で登録されたOAuthクライアント */
+export const oauthClients = pgTable("oauth_client", {
+  id: text("id").primaryKey(), // client_id
+  name: text("name"),
+  redirectUris: text("redirect_uris").array().notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
+/** 認可コード（短命・単回使用、PKCE付き） */
+export const oauthCodes = pgTable("oauth_code", {
+  code: text("code").primaryKey(),
+  clientId: text("client_id").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  resource: text("resource"),
+  scope: text("scope"),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+});
+
+/** リフレッシュトークン（回転式） */
+export const oauthRefreshTokens = pgTable("oauth_refresh_token", {
+  token: text("token").primaryKey(),
+  clientId: text("client_id").notNull(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  resource: text("resource"),
+  scope: text("scope"),
+  expiresAt: bigint("expires_at", { mode: "number" }).notNull(),
+});
+
 /** ユーザー単位の汎用設定（key-value）。コーチURLなどを保存 */
 export const appSettings = pgTable(
   "app_setting",

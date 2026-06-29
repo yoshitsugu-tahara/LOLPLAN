@@ -23,6 +23,9 @@ export default withAuth((req) => {
 });
 
 export const config = {
-  // 認証API・静的ファイル・画像以外を保護
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.).*)"],
+  // 認証API・MCP・OAuth・静的ファイル・画像以外を保護。
+  // (.well-known はドットを含むため既存の `.*\.` 除外で対象外)
+  matcher: [
+    "/((?!api/auth|api/mcp|oauth|_next/static|_next/image|favicon.ico|.*\\.).*)",
+  ],
 };

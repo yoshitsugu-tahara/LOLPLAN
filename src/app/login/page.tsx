@@ -8,6 +8,20 @@ function LoginCard() {
   const params = useSearchParams();
   const error = params.get("error");
   const denied = error === "AccessDenied";
+  // OAuth認可フロー等からの戻り先（同一オリジンのみ許可）。なければホーム。
+  const rawCallback = params.get("callbackUrl");
+  const callbackUrl = (() => {
+    if (!rawCallback) return "/";
+    if (rawCallback.startsWith("/")) return rawCallback;
+    try {
+      if (
+        typeof window !== "undefined" &&
+        new URL(rawCallback).origin === window.location.origin
+      )
+        return rawCallback;
+    } catch {}
+    return "/";
+  })();
 
   return (
     <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-8 shadow-xl">
@@ -32,7 +46,7 @@ function LoginCard() {
       )}
 
       <button
-        onClick={() => signIn("google", { callbackUrl: "/" })}
+        onClick={() => signIn("google", { callbackUrl })}
         className="flex w-full items-center justify-center gap-3 rounded-lg border border-white/15 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
       >
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
@@ -58,7 +72,7 @@ function LoginCard() {
 
       {process.env.NODE_ENV === "development" && (
         <button
-          onClick={() => signIn("dev", { callbackUrl: "/" })}
+          onClick={() => signIn("dev", { callbackUrl })}
           className="mt-3 flex w-full items-center justify-center rounded-lg border border-dashed border-amber-500/40 px-4 py-2 text-xs text-amber-300/80 transition hover:bg-amber-500/10"
         >
           🔧 開発ログイン（OWNER_EMAIL）
