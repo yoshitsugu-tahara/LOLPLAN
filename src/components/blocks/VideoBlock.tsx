@@ -1,7 +1,7 @@
 "use client";
 
 import { createReactBlockSpec } from "@blocknote/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { toEmbedUrl, youtubeId, youtubeThumb } from "./video-url";
 
@@ -16,6 +16,8 @@ export const VideoBlock = createReactBlockSpec(
       collapsed: { default: false },
       // シンプル表示（コントロールバー非表示。デフォルトは通常表示）
       simple: { default: false },
+      // 折りたたみバーの表示名（空なら動画タイトル→URLの順でフォールバック）
+      label: { default: "" },
     },
     content: "none",
   },
@@ -30,6 +32,34 @@ export const VideoBlock = createReactBlockSpec(
       const [draft, setDraft] = useState("");
       // eslint-disable-next-line react-hooks/rules-of-hooks
       const [playing, setPlaying] = useState(false);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [title, setTitle] = useState("");
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [editing, setEditing] = useState(false);
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      const [labelDraft, setLabelDraft] = useState("");
+
+      const label = block.props.label;
+      // カスタム名が無いYouTube動画は、折りたたみ表示用にタイトルを取得
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      useEffect(() => {
+        if (!ytId || label) {
+          setTitle("");
+          return;
+        }
+        let cancelled = false;
+        fetch(
+          `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${ytId}&format=json`,
+        )
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => {
+            if (!cancelled && j?.title) setTitle(j.title as string);
+          })
+          .catch(() => {});
+        return () => {
+          cancelled = true;
+        };
+      }, [ytId, label]);
 
       // 1) ペースト直後：埋め込むかリンクのままか選ぶ
       if (mode === "ask" && url) {
@@ -84,33 +114,70 @@ export const VideoBlock = createReactBlockSpec(
             props: { ...block.props, collapsed: !collapsed },
           });
 
-        // 折りたたみ時：細いバーだけ表示（クリックで展開）
+        // 折りたたみ時：細いバーだけ表示（クリックで展開・右クリックで名前編集）
         if (collapsed) {
+          const display = label || title || url;
+          const saveLabel = () => {
+            editor.updateBlock(block, {
+              type: "video",
+              props: { ...block.props, label: labelDraft.trim() },
+            });
+            setEditing(false);
+          };
           return (
             <div className="my-1 w-full" data-content-type="video">
-              <button
-                onClick={toggleCollapsed}
-                className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-white/10"
-              >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="shrink-0"
+              {editing ? (
+                <div className="flex w-full items-center gap-2 rounded-lg border border-sky-400/50 bg-white/5 px-3 py-2">
+                  <span className="shrink-0">🎬</span>
+                  <input
+                    autoFocus
+                    value={labelDraft}
+                    onChange={(e) => setLabelDraft(e.target.value)}
+                    onBlur={saveLabel}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        saveLabel();
+                      } else if (e.key === "Escape") {
+                        setEditing(false);
+                      }
+                    }}
+                    placeholder="動画名（空でタイトルに戻る）"
+                    className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={toggleCollapsed}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setLabelDraft(label || title || "");
+                    setEditing(true);
+                  }}
+                  title="クリックで展開 / 右クリックで名前を編集"
+                  className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-white/10"
                 >
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-                <span className="shrink-0">🎬</span>
-                <span className="min-w-0 flex-1 truncate text-zinc-400">
-                  {url}
-                </span>
-                <span className="shrink-0 text-xs text-zinc-600">展開</span>
-              </button>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="shrink-0"
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                  <span className="shrink-0">🎬</span>
+                  <span className="min-w-0 flex-1 truncate text-zinc-300">
+                    {display}
+                  </span>
+                  <span className="shrink-0 text-xs text-zinc-600">展開</span>
+                </button>
+              )}
             </div>
           );
         }
