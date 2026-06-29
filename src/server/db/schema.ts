@@ -123,6 +123,19 @@ export const maps = pgTable(
   (t) => [index("map_user_idx").on(t.userId)],
 );
 
+/** ユーザー単位の汎用設定（key-value）。コーチURLなどを保存 */
+export const appSettings = pgTable(
+  "app_setting",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    value: text("value"),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
+
 /** お気に入りチャンピオン（プランナーと練習ログで共有・端末横断） */
 export const favoriteChampions = pgTable(
   "favorite_champion",

@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 
 import { auth, isOwner } from "@/auth";
 import { listAllowed } from "@/server/actions/allowlist";
+import { getSetting } from "@/server/actions/settings";
+import CoachUrlField from "./CoachUrlField";
 import DisplayNameField from "./DisplayNameField";
 import InviteManager from "./InviteManager";
 import SignOutButton from "./SignOutButton";
@@ -13,6 +15,7 @@ export default async function SettingsPage() {
 
   const owner = isOwner(session.user.email);
   const allowed = owner ? await listAllowed() : [];
+  const coachUrl = await getSetting("coachUrl");
 
   return (
     <div className="mx-auto h-full max-w-2xl overflow-y-auto px-6 py-12 text-zinc-100">
@@ -46,6 +49,17 @@ export default async function SettingsPage() {
           </div>
           <SignOutButton />
         </div>
+      </section>
+
+      {/* コーチ */}
+      <section className="mb-10">
+        <h2 className="mb-1 text-sm font-semibold text-zinc-400">
+          AIコーチ
+        </h2>
+        <p className="mb-3 text-xs text-zinc-600">
+          「コーチと話す」で開くURL（Claudeのプロジェクト等）。
+        </p>
+        <CoachUrlField initial={coachUrl} />
       </section>
 
       {/* 招待（オーナーのみ） */}

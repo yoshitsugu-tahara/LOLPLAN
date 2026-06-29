@@ -7,6 +7,7 @@ import { listPlans } from "@/server/actions/plans";
 import { listSections } from "@/server/actions/sections";
 import { getMap } from "@/server/actions/maps";
 import { listFavoriteChampions } from "@/server/actions/favorites";
+import { getSetting } from "@/server/actions/settings";
 import {
   listFocuses,
   listGames,
@@ -57,6 +58,10 @@ export function useMistakeStats() {
 export function useFavoriteChampions() {
   return useSWR<string[]>(KEY.favChampions, () => listFavoriteChampions());
 }
+export function useSetting(key: string) {
+  return useSWR<string | null>(["setting", key], () => getSetting(key));
+}
+export const reloadSetting = (key: string) => mutate(["setting", key]);
 export const reloadFavoriteChampions = () => mutate(KEY.favChampions);
 
 export const reloadFocuses = () => mutate(KEY.focuses);

@@ -10,6 +10,7 @@ import {
   reloadSections,
   useNotes,
   useSections,
+  useSetting,
 } from "@/lib/store";
 import type { Note } from "@/lib/types";
 import { moveNote as moveNoteAction } from "@/server/actions/notes";
@@ -151,6 +152,7 @@ export default function NoteSidebar({
   const { data: notes } = useNotes();
   const { data: sections } = useSections();
   const { data: session } = useSession();
+  const { data: coachUrl } = useSetting("coachUrl");
   const user = session?.user;
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -417,6 +419,31 @@ export default function NoteSidebar({
       >
         🗺️ <span>SRプランナー</span>
       </Link>
+
+      <button
+        onClick={() => {
+          if (coachUrl)
+            window.open(coachUrl, "lolnote-coach", "width=480,height=860");
+          else window.location.href = "/settings";
+        }}
+        title={coachUrl ? "別ウィンドウでコーチを開く" : "設定でURLを登録"}
+        className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
+      >
+        🧠 <span className="flex-1 text-left">コーチと話す</span>
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="shrink-0 text-zinc-600"
+        >
+          <path d="M7 17 17 7M9 7h8v8" />
+        </svg>
+      </button>
 
       {/* ラベル絞り込み */}
       {allLabels.length > 0 && (
