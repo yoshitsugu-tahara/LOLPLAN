@@ -41,7 +41,15 @@ export default function AppShell() {
     if (localStorage.getItem("lolnote:sidebar-open") === "0") {
       setSidebarOpen(false);
     }
+    // 直前に開いていたノートを復元（無ければサイドバーが先頭を自動選択）
+    const last = localStorage.getItem("lolnote:last-note");
+    if (last) setSelectedId(last);
   }, []);
+
+  // 開いているノートを記憶
+  useEffect(() => {
+    if (selectedId) localStorage.setItem("lolnote:last-note", selectedId);
+  }, [selectedId]);
 
   const toggleSidebar = () =>
     setSidebarOpen((o) => {
@@ -54,6 +62,13 @@ export default function AppShell() {
   const selected = selectedId
     ? notes?.find((n) => n.id === selectedId)
     : undefined;
+
+  // 復元したノートが既に削除済みなら選択解除（サイドバーが先頭を自動選択）
+  useEffect(() => {
+    if (selectedId && notes && !notes.some((n) => n.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [notes, selectedId]);
 
   // 全ノートから使われているラベル一覧（オートコンプリート用）
   const allLabels = useMemo(
