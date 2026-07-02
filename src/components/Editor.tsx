@@ -17,7 +17,18 @@ import { useEffect, useRef } from "react";
 
 import { patchNoteCache } from "@/lib/store";
 import type { Note } from "@/lib/types";
+import { uploadImage } from "@/server/actions/images";
 import { updateNote } from "@/server/actions/notes";
+
+/** File を data URL に変換 */
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
 import { schema, type AppEditor } from "./blocks/schema";
 import { toEmbedUrl } from "./blocks/video-url";
 import FindBar from "./FindBar";
@@ -100,6 +111,12 @@ export default function Editor({
         ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (note.content as any)
         : undefined,
+    // 画像の貼り付け／ドラッグ＆ドロップ／選択アップロードをNeonに保存し
+    // /api/img/<id> のURLで差し込む
+    uploadFile: async (file: File) => {
+      const dataUrl = await fileToDataUrl(file);
+      return await uploadImage(dataUrl);
+    },
     // YouTube / Twitch のURLを貼ったら「埋め込む？」を選ばせる動画ブロックにする
     pasteHandler: ({ event, editor: ed, defaultPasteHandler }) => {
       const text = event.clipboardData?.getData("text/plain")?.trim();

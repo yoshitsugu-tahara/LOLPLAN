@@ -43,6 +43,13 @@
       "when": 1782694048912,
       "tag": "0005_petite_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782970418049,
+      "tag": "0006_hot_hannibal_king",
+      "breakpoints": true
     }
   ]
 }

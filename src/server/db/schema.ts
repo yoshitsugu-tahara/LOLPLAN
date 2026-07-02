@@ -123,6 +123,21 @@ export const maps = pgTable(
   (t) => [index("map_user_idx").on(t.userId)],
 );
 
+/** ノートに貼り付けた画像（base64で保持、/api/img/<id> で本人だけに配信） */
+export const images = pgTable(
+  "image",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    mime: text("mime").notNull(),
+    data: text("data").notNull(), // base64（プレフィックスなし）
+    createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  },
+  (t) => [index("image_user_idx").on(t.userId)],
+);
+
 // ───────────────────────── MCP OAuth（認可サーバ） ─────────────────────────
 
 /** 動的クライアント登録(DCR)で登録されたOAuthクライアント */
