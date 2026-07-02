@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { reloadSetting } from "@/lib/store";
 import { setSetting } from "@/server/actions/settings";
@@ -9,13 +9,21 @@ export default function CoachUrlField({ initial }: { initial: string | null }) {
   const [url, setUrl] = useState(initial ?? "");
   const [done, setDone] = useState(false);
   const [pending, start] = useTransition();
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (doneTimer.current) clearTimeout(doneTimer.current);
+    },
+    [],
+  );
 
   const save = () => {
     start(async () => {
       await setSetting("coachUrl", url);
       reloadSetting("coachUrl");
       setDone(true);
-      setTimeout(() => setDone(false), 1500);
+      if (doneTimer.current) clearTimeout(doneTimer.current);
+      doneTimer.current = setTimeout(() => setDone(false), 1500);
     });
   };
 

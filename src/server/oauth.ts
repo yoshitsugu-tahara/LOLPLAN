@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "crypto";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { SignJWT, jwtVerify } from "jose";
 
 import { db } from "@/server/db";
@@ -60,10 +60,23 @@ export function verifyPkceS256(verifier: string, challenge: string): boolean {
 
 // ───────── クライアント（DCR） ─────────
 
+const CLIENT_CAP = 50;
+
 export async function createClient(
   name: string | undefined,
   redirectUris: string[],
 ): Promise<string> {
+  // DCRは無認証なのでテーブル肥大を防ぐため上限を設け、古い順に間引く
+  const existing = await db
+    .select({ id: oauthClients.id })
+    .from(oauthClients)
+    .orderBy(asc(oauthClients.createdAt));
+  if (existing.length >= CLIENT_CAP) {
+    const prune = existing
+      .slice(0, existing.length - CLIENT_CAP + 1)
+      .map((c) => c.id);
+    await db.delete(oauthClients).where(inArray(oauthClients.id, prune));
+  }
   const id = `mcp_${b64url(randomBytes(18))}`;
   await db.insert(oauthClients).values({
     id,
@@ -107,16 +120,14 @@ export async function saveCode(args: {
   return code;
 }
 
-/** コードを単回消費。期限切れ/不正は null。 */
+/** コードを単回消費（DELETE...RETURNINGで原子的に）。期限切れ/不正は null。 */
 export async function consumeCode(code: string) {
   const rows = await db
-    .select()
-    .from(oauthCodes)
+    .delete(oauthCodes)
     .where(eq(oauthCodes.code, code))
-    .limit(1);
+    .returning();
   const row = rows[0];
   if (!row) return null;
-  await db.delete(oauthCodes).where(eq(oauthCodes.code, code));
   if (row.expiresAt < Date.now()) return null;
   return row;
 }
@@ -141,23 +152,19 @@ export async function issueRefreshToken(args: {
   return token;
 }
 
-/** リフレッシュトークンを検証して消費（回転のため削除）。 */
+/** リフレッシュトークンを検証して消費（DELETE...RETURNINGで原子的に回転）。 */
 export async function consumeRefreshToken(token: string, clientId: string) {
   const rows = await db
-    .select()
-    .from(oauthRefreshTokens)
+    .delete(oauthRefreshTokens)
     .where(
       and(
         eq(oauthRefreshTokens.token, token),
         eq(oauthRefreshTokens.clientId, clientId),
       ),
     )
-    .limit(1);
+    .returning();
   const row = rows[0];
   if (!row) return null;
-  await db
-    .delete(oauthRefreshTokens)
-    .where(eq(oauthRefreshTokens.token, token));
   if (row.expiresAt < Date.now()) return null;
   return row;
 }

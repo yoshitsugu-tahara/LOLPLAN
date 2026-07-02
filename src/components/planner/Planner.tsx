@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { getOrCreatePlan, updatePlan } from "@/server/actions/plans";
 import KonvaBoard from "./KonvaBoard";
@@ -23,9 +23,12 @@ export default function Planner({ planId }: { planId: string }) {
     [planId],
   );
 
+  // タイトルは打鍵ごとにDB書き込みせずデバウンス保存（エディタ側と同様）
+  const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const updateTitle = (t: string) => {
     setTitle(t);
-    updatePlan(planId, { title: t });
+    if (titleTimer.current) clearTimeout(titleTimer.current);
+    titleTimer.current = setTimeout(() => updatePlan(planId, { title: t }), 500);
   };
 
   return (

@@ -69,20 +69,29 @@ export async function listGames(limit = 50): Promise<Game[]> {
   return rows as Game[];
 }
 
+const clamp = (s: string | undefined, n: number) =>
+  (s ?? "").trim().slice(0, n) || null;
+
 export async function addGame(input: GameInput): Promise<void> {
   const uid = await getUserId();
   const now = Date.now();
+  if (input.result !== "win" && input.result !== "lose") {
+    throw new Error("invalid result");
+  }
+  const tags =
+    input.tags?.filter((t) => typeof t === "string").slice(0, 30).map((t) => t.slice(0, 100)) ??
+    [];
   await db.insert(games).values({
     id: nanoid(),
     userId: uid,
     result: input.result,
-    champion: input.champion?.trim() || null,
-    role: input.role || null,
-    focusScore: input.focusScore || null,
-    good: input.good?.trim() || null,
-    mistake: input.mistake?.trim() || null,
-    tags: input.tags && input.tags.length ? input.tags : null,
-    nextFocus: input.nextFocus?.trim() || null,
+    champion: clamp(input.champion, 100),
+    role: input.role?.slice(0, 20) || null,
+    focusScore: input.focusScore?.slice(0, 20) || null,
+    good: clamp(input.good, 1000),
+    mistake: clamp(input.mistake, 1000),
+    tags: tags.length ? tags : null,
+    nextFocus: clamp(input.nextFocus, 1000),
     playedAt: now,
     createdAt: now,
   });

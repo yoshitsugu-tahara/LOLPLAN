@@ -12,7 +12,9 @@ function LoginCard() {
   const rawCallback = params.get("callbackUrl");
   const callbackUrl = (() => {
     if (!rawCallback) return "/";
-    if (rawCallback.startsWith("/")) return rawCallback;
+    // 「//evil.com」等のプロトコル相対URLは弾く
+    if (rawCallback.startsWith("/") && !rawCallback.startsWith("//"))
+      return rawCallback;
     try {
       if (
         typeof window !== "undefined" &&

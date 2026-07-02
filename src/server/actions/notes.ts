@@ -42,6 +42,10 @@ export async function createNote(
   return noteId;
 }
 
+const MAX_CONTENT_BYTES = 2_000_000; // 2MB
+const MAX_TITLE = 1000;
+const MAX_LABELS = 50;
+
 export async function updateNote(
   id: string,
   patch: {
@@ -52,6 +56,23 @@ export async function updateNote(
   },
 ): Promise<void> {
   const uid = await getUserId();
+  // 入力サイズ検証（巨大ペイロードでのDB/メモリ圧迫を防ぐ）
+  if (patch.title !== undefined && patch.title.length > MAX_TITLE) {
+    throw new Error("title too long");
+  }
+  if (
+    patch.content !== undefined &&
+    JSON.stringify(patch.content).length > MAX_CONTENT_BYTES
+  ) {
+    throw new Error("content too large");
+  }
+  if (
+    patch.labels !== undefined &&
+    (patch.labels.length > MAX_LABELS ||
+      patch.labels.some((l) => typeof l !== "string" || l.length > 100))
+  ) {
+    throw new Error("invalid labels");
+  }
   await db
     .update(notes)
     .set({ ...patch, updatedAt: Date.now() })
@@ -85,7 +106,8 @@ export async function moveNote(
   target.splice(idx, 0, dragged);
 
   const now = Date.now();
-  const ops: Promise<unknown>[] = [];
+  // 並べ替えの複数UPDATEを db.batch で原子的に実行（順序破壊を防ぐ）
+  const ops: unknown[] = [];
   for (let i = 0; i < target.length; i++) {
     const patch: { order: number; updatedAt: number; sectionId?: string | null } =
       { order: i, updatedAt: now };
@@ -112,5 +134,7 @@ export async function moveNote(
       );
     }
   }
-  await Promise.all(ops);
+  if (ops.length) {
+    await db.batch(ops as unknown as Parameters<typeof db.batch>[0]);
+  }
 }
