@@ -83,6 +83,8 @@ export const sections = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     order: integer("order").notNull(),
+    // このセクションに新規作成するノートのタイトルテンプレート（{date}等）
+    titleTemplate: text("title_template"),
   },
   (t) => [index("section_user_idx").on(t.userId)],
 );

@@ -38,6 +38,19 @@ export async function renameSection(id: string, name: string): Promise<void> {
     .where(and(eq(sections.id, id), eq(sections.userId, uid)));
 }
 
+/** セクションのタイトルテンプレートを設定（空文字/未指定でクリア） */
+export async function setSectionTemplate(
+  id: string,
+  template: string,
+): Promise<void> {
+  const uid = await getUserId();
+  const t = template.trim().slice(0, 200);
+  await db
+    .update(sections)
+    .set({ titleTemplate: t || null })
+    .where(and(eq(sections.id, id), eq(sections.userId, uid)));
+}
+
 export async function deleteSection(id: string): Promise<void> {
   const uid = await getUserId();
   // 中のノートは未分類に戻す

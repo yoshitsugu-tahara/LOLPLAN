@@ -4,7 +4,8 @@ import { nanoid } from "nanoid";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { patchNoteCache, patchNotes, useNotes } from "@/lib/store";
+import { patchNoteCache, patchNotes, useNotes, useSections } from "@/lib/store";
+import { renderTitleTemplate } from "@/lib/template";
 import type { Note } from "@/lib/types";
 import {
   createNote as createNoteAction,
@@ -59,6 +60,7 @@ export default function AppShell() {
     });
 
   const { data: notes } = useNotes();
+  const { data: sectionsData } = useSections();
   const selected = selectedId
     ? notes?.find((n) => n.id === selectedId)
     : undefined;
@@ -115,10 +117,18 @@ export default function AppShell() {
   const createNote = async (sectionId: string | null = null) => {
     const id = nanoid();
     const now = Date.now();
+    // セクションにタイトルテンプレートがあれば適用（日記の日付など）
+    let title = "無題のノート";
+    if (sectionId) {
+      const sec = (sectionsData ?? []).find((s) => s.id === sectionId);
+      if (sec?.titleTemplate) {
+        title = renderTitleTemplate(sec.titleTemplate) || title;
+      }
+    }
     // まず画面を即更新（楽観的）。保存は裏で。
     const optimistic: Note = {
       id,
-      title: "無題のノート",
+      title,
       content: null,
       sectionId,
       order: -now,
@@ -131,7 +141,7 @@ export default function AppShell() {
     setMode("editor");
     // 再フェッチはしない（楽観キャッシュが正。直後のタイトル入力を
     // 背景フェッチが上書きするのを防ぐ。整合はSWRのフォーカス再検証で取る）
-    await createNoteAction(id, sectionId);
+    await createNoteAction(id, sectionId, title);
   };
 
   const deleteNote = async (id: string) => {

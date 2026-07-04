@@ -18,6 +18,7 @@ export interface Section {
   userId?: string;
   name: string;
   order: number;
+  titleTemplate?: string | null;
 }
 
 export interface MapBoard {

@@ -24,6 +24,7 @@ export async function listNotes(): Promise<Note[]> {
 export async function createNote(
   id?: string,
   sectionId?: string | null,
+  title?: string,
 ): Promise<string> {
   const uid = await getUserId();
   const noteId = id ?? nanoid();
@@ -31,7 +32,7 @@ export async function createNote(
   await db.insert(notes).values({
     id: noteId,
     userId: uid,
-    title: "無題のノート",
+    title: title?.trim().slice(0, 1000) || "無題のノート",
     content: null,
     sectionId: sectionId ?? null,
     order: -now, // 新規はそのグループの先頭に

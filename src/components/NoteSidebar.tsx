@@ -21,6 +21,7 @@ import {
 } from "@/server/actions/sections";
 import { labelColor } from "./LabelEditor";
 import { SidebarSkeleton } from "./Skeleton";
+import TemplateModal from "./TemplateModal";
 
 const NOTE_MIME = "application/x-lolnote-note";
 
@@ -156,6 +157,11 @@ export default function NoteSidebar({
   const user = session?.user;
   const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
+  const [templateSec, setTemplateSec] = useState<{
+    id: string;
+    name: string;
+    template: string;
+  } | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
   // 絞り込み中のラベル（複数選択＝すべて含むノートのみ表示）
   const [filter, setFilter] = useState<string[]>([]);
@@ -509,6 +515,15 @@ export default function NoteSidebar({
                   items: [
                     { label: "名前を変更", onClick: () => setRenaming(sec.id) },
                     {
+                      label: "タイトルテンプレート",
+                      onClick: () =>
+                        setTemplateSec({
+                          id: sec.id,
+                          name: sec.name,
+                          template: sec.titleTemplate ?? "",
+                        }),
+                    },
+                    {
                       label: "セクションを削除",
                       danger: true,
                       onClick: () => deleteSection(sec.id),
@@ -611,6 +626,15 @@ export default function NoteSidebar({
       </Link>
 
       <ContextMenu menu={menu} onClose={() => setMenu(null)} />
+
+      {templateSec && (
+        <TemplateModal
+          sectionId={templateSec.id}
+          sectionName={templateSec.name}
+          initial={templateSec.template}
+          onClose={() => setTemplateSec(null)}
+        />
+      )}
     </aside>
   );
 }

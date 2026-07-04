@@ -1,0 +1,1 @@
+ALTER TABLE "section" ADD COLUMN "title_template" text;
