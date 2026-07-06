@@ -1,39 +1,104 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
-import { useNotes } from "@/lib/store";
+import { useNotes, useSections } from "@/lib/store";
+import { labelColor } from "./LabelEditor";
 import { blocksToText } from "./noteText";
 
-interface Result {
+interface Indexed {
   id: string;
   title: string;
-  snippet: string;
+  sectionName: string;
+  labels: string[];
+  text: string;
+  updatedAt: number;
+  lowerTitle: string;
+  lowerSection: string;
+  lowerLabels: string;
+  lowerText: string;
+}
+interface Result {
+  item: Indexed;
+  terms: string[];
 }
 
-/** クエリ中の一致部分をハイライト */
-function Highlight({ text, query }: { text: string; query: string }) {
-  if (!query) return <>{text}</>;
+/** 複数語のいずれかに一致する箇所をハイライト */
+function Highlight({ text, terms }: { text: string; terms: string[] }) {
+  if (!terms.length) return <>{text}</>;
   const lower = text.toLowerCase();
-  const q = query.toLowerCase();
-  const parts: React.ReactNode[] = [];
-  let i = 0;
-  let key = 0;
-  while (i < text.length) {
-    const idx = lower.indexOf(q, i);
-    if (idx === -1) {
-      parts.push(text.slice(i));
-      break;
+  const ranges: [number, number][] = [];
+  for (const t of terms) {
+    if (!t) continue;
+    let i = 0;
+    for (;;) {
+      const idx = lower.indexOf(t, i);
+      if (idx < 0) break;
+      ranges.push([idx, idx + t.length]);
+      i = idx + t.length;
     }
-    if (idx > i) parts.push(text.slice(i, idx));
+  }
+  if (!ranges.length) return <>{text}</>;
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const r of ranges) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else merged.push([r[0], r[1]]);
+  }
+  const parts: React.ReactNode[] = [];
+  let pos = 0;
+  let key = 0;
+  for (const [s, e] of merged) {
+    if (s > pos) parts.push(text.slice(pos, s));
     parts.push(
       <mark key={key++} className="rounded bg-sky-500/30 text-sky-200">
-        {text.slice(idx, idx + q.length)}
+        {text.slice(s, e)}
       </mark>,
     );
-    i = idx + q.length;
+    pos = e;
   }
+  if (pos < text.length) parts.push(text.slice(pos));
   return <>{parts}</>;
+}
+
+/** 各語の一致場所で重み付けスコア。1語でもどこにも無ければ -1（AND不成立）。 */
+function scoreOf(it: Indexed, terms: string[]): number {
+  let s = 0;
+  for (const t of terms) {
+    let hit = 0;
+    if (it.lowerTitle.includes(t)) {
+      hit += 12;
+      if (it.lowerTitle.startsWith(t)) hit += 6;
+    }
+    if (it.lowerSection.includes(t)) hit += 6;
+    if (it.lowerLabels.includes(t)) hit += 6;
+    if (it.lowerText.includes(t)) hit += 2;
+    if (hit === 0) return -1;
+    s += hit;
+  }
+  return s;
+}
+
+/** 本文中の最初の一致周辺を抜き出す */
+function snippetOf(text: string, terms: string[]): string {
+  const lower = text.toLowerCase();
+  let idx = -1;
+  for (const t of terms) {
+    const i = lower.indexOf(t);
+    if (i >= 0 && (idx < 0 || i < idx)) idx = i;
+  }
+  if (idx < 0) return text.slice(0, 90).replace(/\s+/g, " ");
+  const start = Math.max(0, idx - 26);
+  return (
+    (start > 0 ? "…" : "") + text.slice(start, idx + 60).replace(/\s+/g, " ")
+  );
 }
 
 export default function SearchModal({
@@ -46,31 +111,57 @@ export default function SearchModal({
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
   const { data: notes } = useNotes();
+  const { data: sections } = useSections();
+  const dq = useDeferredValue(q);
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+
+  // インデックスは notes/sections が変わった時だけ構築（blocksToText再計算を避ける）
+  const index = useMemo<Indexed[]>(() => {
+    const secMap = new Map((sections ?? []).map((s) => [s.id, s.name]));
+    return (notes ?? []).map((n) => {
+      const title = n.title || "無題のノート";
+      const sectionName = n.sectionId ? (secMap.get(n.sectionId) ?? "") : "";
+      const labels = n.labels ?? [];
+      const text = blocksToText(n.content);
+      return {
+        id: n.id,
+        title,
+        sectionName,
+        labels,
+        text,
+        updatedAt: n.updatedAt,
+        lowerTitle: title.toLowerCase(),
+        lowerSection: sectionName.toLowerCase(),
+        lowerLabels: labels.join(" ").toLowerCase(),
+        lowerText: text.toLowerCase(),
+      };
+    });
+  }, [notes, sections]);
 
   const results = useMemo<Result[]>(() => {
-    const query = q.trim().toLowerCase();
-    if (!query || !notes) return [];
-    const out: Result[] = [];
-    for (const n of notes) {
-      const title = n.title || "無題のノート";
-      const body = blocksToText(n.content);
-      if (!(title.toLowerCase() + "\n" + body.toLowerCase()).includes(query))
-        continue;
-      const bidx = body.toLowerCase().indexOf(query);
-      let snippet = "";
-      if (bidx >= 0) {
-        const start = Math.max(0, bidx - 24);
-        snippet =
-          (start > 0 ? "…" : "") +
-          body.slice(start, bidx + query.length + 40).replace(/\s+/g, " ");
-      }
-      out.push({ id: n.id, title, snippet });
-      if (out.length >= 50) break;
+    const terms = dq.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) {
+      // 空クエリ：最近更新したノートをクイックスイッチャーとして出す
+      return [...index]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, 10)
+        .map((item) => ({ item, terms: [] }));
     }
-    return out;
-  }, [q, notes]);
+    const scored: { item: Indexed; s: number }[] = [];
+    for (const it of index) {
+      const s = scoreOf(it, terms);
+      if (s >= 0) scored.push({ item: it, s });
+    }
+    scored.sort((a, b) => b.s - a.s || b.item.updatedAt - a.item.updatedAt);
+    return scored.slice(0, 40).map(({ item }) => ({ item, terms }));
+  }, [dq, index]);
 
-  useEffect(() => setActive(0), [q]);
+  const isEmptyQuery = !dq.trim();
+
+  useEffect(() => setActive(0), [dq]);
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [active]);
 
   const choose = (id: string) => {
     onSelect(id);
@@ -87,7 +178,7 @@ export default function SearchModal({
       setActive((a) => Math.max(0, a - 1));
     } else if (e.key === "Enter" && results[active]) {
       e.preventDefault();
-      choose(results[active].id);
+      choose(results[active].item.id);
     }
   };
 
@@ -119,7 +210,7 @@ export default function SearchModal({
             autoFocus
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="ノートを検索…"
+            placeholder="ノート・セクション・ラベルを検索…（スペースで絞り込み）"
             className="flex-1 bg-transparent py-3 text-sm text-white outline-none placeholder:text-zinc-500"
           />
           <kbd className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-zinc-400">
@@ -128,30 +219,67 @@ export default function SearchModal({
         </div>
 
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
-          {q && results.length === 0 && (
+          {isEmptyQuery && results.length > 0 && (
+            <div className="px-3 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
+              最近のノート
+            </div>
+          )}
+          {!isEmptyQuery && results.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-zinc-500">
               一致するノートがありません
             </p>
           )}
-          {results.map((r, i) => (
-            <button
-              key={r.id}
-              onClick={() => choose(r.id)}
-              onMouseEnter={() => setActive(i)}
-              className={`flex w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition ${
-                i === active ? "bg-white/10" : "hover:bg-white/5"
-              }`}
-            >
-              <span className="truncate text-sm font-medium text-zinc-100">
-                <Highlight text={r.title} query={q} />
-              </span>
-              {r.snippet && (
-                <span className="line-clamp-1 text-xs text-zinc-500">
-                  <Highlight text={r.snippet} query={q} />
-                </span>
-              )}
-            </button>
-          ))}
+          {results.map((r, i) => {
+            const { item, terms } = r;
+            const snip = terms.length ? snippetOf(item.text, terms) : "";
+            return (
+              <button
+                key={item.id}
+                ref={i === active ? activeRef : null}
+                onClick={() => choose(item.id)}
+                onMouseEnter={() => setActive(i)}
+                className={`flex w-full flex-col items-start gap-1 rounded-lg px-3 py-2 text-left transition ${
+                  i === active ? "bg-white/10" : "hover:bg-white/5"
+                }`}
+              >
+                <div className="flex w-full items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">
+                    <Highlight text={item.title} terms={terms} />
+                  </span>
+                  {item.sectionName && (
+                    <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-400">
+                      <Highlight text={item.sectionName} terms={terms} />
+                    </span>
+                  )}
+                  {item.labels.slice(0, 3).map((l) => (
+                    <span
+                      key={l}
+                      style={labelColor(l)}
+                      className="shrink-0 rounded-full border px-1.5 text-[10px] font-medium"
+                    >
+                      {l}
+                    </span>
+                  ))}
+                </div>
+                {snip && (
+                  <span className="line-clamp-1 text-xs text-zinc-500">
+                    <Highlight text={snip} terms={terms} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center gap-3 border-t border-white/10 px-4 py-2 text-[11px] text-zinc-600">
+          <span>
+            <kbd className="rounded bg-white/10 px-1">↑</kbd>
+            <kbd className="ml-0.5 rounded bg-white/10 px-1">↓</kbd> 移動
+          </span>
+          <span>
+            <kbd className="rounded bg-white/10 px-1">↵</kbd> 開く
+          </span>
+          <span className="ml-auto">{results.length} 件</span>
         </div>
       </div>
     </div>
