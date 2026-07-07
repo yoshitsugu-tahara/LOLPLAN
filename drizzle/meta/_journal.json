@@ -57,6 +57,13 @@
       "when": 1783166004612,
       "tag": "0007_new_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783411851762,
+      "tag": "0008_rainy_jetstream",
+      "breakpoints": true
     }
   ]
 }

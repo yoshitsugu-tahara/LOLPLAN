@@ -1,23 +1,272 @@
 "use client";
 
-import { Pause, Play } from "lucide-react";
+import { Pause, Play, Skull } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChampionIcon } from "@/components/ChampionSelect";
+import { ChampionIcon, useChampions } from "@/components/ChampionSelect";
 import SimpleSelect from "@/components/SimpleSelect";
+import { MAP_IMAGE } from "@/components/planner/data";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MAP_IMAGE } from "@/components/planner/data";
-import type { MatchSummary, ReplayData } from "@/lib/riot";
+import { useSetting } from "@/lib/store";
+import {
+  opponentOf,
+  queueName,
+  type MatchSummary,
+  type ReplayData,
+  type ReplayParticipant,
+  type ReplayStat,
+} from "@/lib/riot";
 
 function fmtDate(ts: number) {
   const d = new Date(ts);
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
+function fmtGold(g: number) {
+  return `${(g / 1000).toFixed(1)}k`;
+}
+function signed(n: number) {
+  return n > 0 ? `+${n}` : `${n}`;
+}
+
+function itemIcon(version: string | undefined, id: number) {
+  return version && id
+    ? `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${id}.png`
+    : null;
+}
+
+// ───────── リード差（自分 vs 対面）ミニグラフ ─────────
+function GoldDiffSparkline({
+  data,
+  mePid,
+  oppPid,
+  minute,
+}: {
+  data: ReplayData;
+  mePid: number;
+  oppPid: number;
+  minute: number;
+}) {
+  const W = 260;
+  const H = 56;
+  const diffs = data.frames.map((f) => {
+    const me = f.stats.find((s) => s.participantId === mePid)?.totalGold ?? 0;
+    const op = f.stats.find((s) => s.participantId === oppPid)?.totalGold ?? 0;
+    return me - op;
+  });
+  const maxAbs = Math.max(500, ...diffs.map((d) => Math.abs(d)));
+  const x = (i: number) => (i / Math.max(1, diffs.length - 1)) * W;
+  const y = (d: number) => H / 2 - (d / maxAbs) * (H / 2 - 4);
+  const pts = diffs.map((d, i) => `${x(i)},${y(d)}`).join(" ");
+  const cur = diffs[minute] ?? 0;
+
+  return (
+    <svg width={W} height={H} className="w-full">
+      <line x1={0} y1={H / 2} x2={W} y2={H / 2} stroke="rgba(255,255,255,.15)" />
+      {/* 正=青の塗り, 負=赤の塗り は省略しシンプルに線＋現在点 */}
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={cur >= 0 ? "#38bdf8" : "#f87171"}
+        strokeWidth={2}
+      />
+      <circle cx={x(minute)} cy={y(cur)} r={3.5} fill="#fff" />
+    </svg>
+  );
+}
+
+// ───────── 選択中の分の「自分 vs 対面」パネル ─────────
+function LeadPanel({
+  data,
+  me,
+  minute,
+}: {
+  data: ReplayData;
+  me: ReplayParticipant;
+  minute: number;
+}) {
+  const opp = opponentOf(me, data.participants);
+  const frame = data.frames[minute];
+  const stat = (pid: number): ReplayStat | undefined =>
+    frame?.stats.find((s) => s.participantId === pid);
+  const meS = stat(me.participantId);
+
+  if (!opp || !meS) {
+    return (
+      <div className="rounded-lg border border-white/10 bg-zinc-900 p-3 text-sm text-zinc-500">
+        対面（同ロールの敵）を特定できませんでした。
+      </div>
+    );
+  }
+  const oppS = stat(opp.participantId);
+  if (!oppS) return null;
+
+  const rows: { label: string; me: number; op: number; fmt?: (n: number) => string }[] = [
+    { label: "ゴールド", me: meS.totalGold, op: oppS.totalGold, fmt: fmtGold },
+    { label: "CS", me: meS.cs, op: oppS.cs },
+    { label: "レベル", me: meS.level, op: oppS.level },
+  ];
+
+  return (
+    <div className="space-y-2 rounded-lg border border-white/10 bg-zinc-900 p-3">
+      <div className="flex items-center justify-between text-xs">
+        <span className="flex items-center gap-1.5 text-sky-300">
+          <ChampionIcon id={me.championName} className="h-5 w-5 rounded" />
+          自分
+        </span>
+        <span className="text-zinc-600">vs 対面</span>
+        <span className="flex items-center gap-1.5 text-red-300">
+          {opp.championName}
+          <ChampionIcon id={opp.championName} className="h-5 w-5 rounded" />
+        </span>
+      </div>
+      {rows.map((r) => {
+        const d = r.me - r.op;
+        const f = r.fmt ?? ((n: number) => String(n));
+        return (
+          <div key={r.label} className="flex items-center gap-2 text-sm">
+            <span className="w-14 text-right tabular-nums text-zinc-300">
+              {f(r.me)}
+            </span>
+            <span className="w-20 text-center text-[11px] text-zinc-600">
+              {r.label}
+            </span>
+            <span className="w-14 tabular-nums text-zinc-300">{f(r.op)}</span>
+            <span
+              className={`ml-auto w-16 text-right text-xs font-semibold tabular-nums ${
+                d > 0 ? "text-sky-300" : d < 0 ? "text-red-300" : "text-zinc-500"
+              }`}
+            >
+              {r.fmt ? (d >= 0 ? "+" : "") + f(Math.abs(d)) : signed(d)}
+            </span>
+          </div>
+        );
+      })}
+      <div className="pt-1">
+        <div className="mb-0.5 text-[11px] text-zinc-600">
+          ゴールド差の推移（青=自分リード / 赤=負け）
+        </div>
+        <GoldDiffSparkline
+          data={data}
+          mePid={me.participantId}
+          oppPid={opp.participantId}
+          minute={minute}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ───────── 最終スコアボード ─────────
+function Scoreboard({
+  data,
+  myPuuid,
+  version,
+}: {
+  data: ReplayData;
+  myPuuid: string | null;
+  version: string | undefined;
+}) {
+  return (
+    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+      {[100, 200].map((team) => {
+        const win = data.participants.find((p) => p.teamId === team)?.win;
+        return (
+          <div
+            key={team}
+            className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900"
+          >
+            <div
+              className={`flex items-center justify-between px-3 py-1.5 text-xs font-bold ${
+                team === 100
+                  ? "bg-sky-500/10 text-sky-300"
+                  : "bg-red-500/10 text-red-300"
+              }`}
+            >
+              <span>{team === 100 ? "ブルー" : "レッド"}</span>
+              <span>{win ? "勝利" : "敗北"}</span>
+            </div>
+            <table className="w-full text-xs">
+              <tbody>
+                {data.participants
+                  .filter((p) => p.teamId === team)
+                  .map((p) => {
+                    const isMe = !!myPuuid && p.puuid === myPuuid;
+                    return (
+                      <tr
+                        key={p.participantId}
+                        className={`border-t border-white/5 ${isMe ? "bg-yellow-400/10" : ""}`}
+                      >
+                        <td className="py-1 pl-2 pr-1">
+                          <div className="flex items-center gap-1.5">
+                            <ChampionIcon
+                              id={p.championName}
+                              className="h-7 w-7 rounded"
+                            />
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-zinc-200">
+                                {p.championName}
+                              </div>
+                              <div className="truncate text-[10px] text-zinc-500">
+                                {p.riotIdGameName || p.role}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-1 text-center tabular-nums text-zinc-300">
+                          {p.kills}/{p.deaths}/{p.assists}
+                        </td>
+                        <td className="px-1 text-center tabular-nums text-zinc-400">
+                          {p.cs}
+                          <span className="text-[10px] text-zinc-600">
+                            {" "}
+                            ({p.csPerMin.toFixed(1)})
+                          </span>
+                        </td>
+                        <td className="px-1 text-center tabular-nums text-amber-300/80">
+                          {fmtGold(p.gold)}
+                        </td>
+                        <td className="hidden px-1 sm:table-cell">
+                          <div className="flex gap-0.5">
+                            {p.items.slice(0, 6).map((it, i) => {
+                              const src = itemIcon(version, it);
+                              return src ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  key={i}
+                                  src={src}
+                                  alt=""
+                                  className="h-4 w-4 rounded-sm"
+                                />
+                              ) : (
+                                <span
+                                  key={i}
+                                  className="h-4 w-4 rounded-sm bg-white/5"
+                                />
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ReplayPoc() {
-  const [riotId, setRiotId] = useState("Arisa#dps");
+  const { data: savedRiotId } = useSetting("riotId");
+  const champData = useChampions();
+  const version = champData?.version;
+
+  const [riotId, setRiotId] = useState("");
+  const [myPuuid, setMyPuuid] = useState<string | null>(null);
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [matchId, setMatchId] = useState("");
   const [data, setData] = useState<ReplayData | null>(null);
@@ -26,10 +275,26 @@ export default function ReplayPoc() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const maxMinute = data ? data.frames.length - 1 : 0;
+  // 設定のRiot IDを初期値に（ユーザーがまだ触っていなければ）
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (!seeded.current && savedRiotId) {
+      setRiotId(savedRiotId);
+      seeded.current = true;
+    }
+  }, [savedRiotId]);
 
-  // 試合一覧を取得
+  const maxMinute = data ? data.frames.length - 1 : 0;
+  const me = useMemo(
+    () => data?.participants.find((p) => p.puuid === myPuuid) ?? null,
+    [data, myPuuid],
+  );
+
   const loadList = async () => {
+    if (!riotId.trim()) {
+      setError("設定でRiot IDを保存するか、ここに入力してください");
+      return;
+    }
     setError(null);
     setLoading(true);
     setData(null);
@@ -40,6 +305,7 @@ export default function ReplayPoc() {
       );
       const j = await res.json();
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      setMyPuuid(j.puuid);
       setMatches(j.matches);
       if (j.matches[0]) {
         setMatchId(j.matches[0].matchId);
@@ -52,7 +318,6 @@ export default function ReplayPoc() {
     }
   };
 
-  // 選択した試合のタイムラインを取得
   const loadReplay = async (id: string) => {
     setError(null);
     setLoading(true);
@@ -90,21 +355,29 @@ export default function ReplayPoc() {
 
   const frame = data?.frames[minute];
   const partById = useMemo(() => {
-    const m = new Map<number, ReplayData["participants"][number]>();
+    const m = new Map<number, ReplayParticipant>();
     for (const p of data?.participants ?? []) m.set(p.participantId, p);
     return m;
   }, [data]);
 
-  // 現在の分の前後30秒に起きたイベント
+  // 現在の分の前後30秒のイベント
   const nowEvents = useMemo(() => {
     if (!data) return [];
     const center = minute * 60000;
     return data.events.filter((e) => Math.abs(e.ms - center) <= 30000);
   }, [data, minute]);
 
+  // 自分のデス（全試合・常時マーカー）
+  const myDeaths = useMemo(() => {
+    if (!data || !me) return [];
+    return data.events.filter(
+      (e) => e.type === "CHAMPION_KILL" && e.victimId === me.participantId,
+    );
+  }, [data, me]);
+
   const matchOptions = matches.map((m) => ({
     value: m.matchId,
-    label: `${m.champ} ${m.win ? "◯勝" : "✕負"} ・ ${fmtDate(m.gameStart)}`,
+    label: `${m.champ} ${m.win ? "◯" : "✕"} ${queueName(m.queueId)} ・ ${fmtDate(m.gameStart)}`,
   }));
 
   return (
@@ -118,19 +391,17 @@ export default function ReplayPoc() {
         </Link>
         <h1 className="text-xl font-bold">
           試合<span className="text-sky-400">リプレイ</span>
-          <span className="ml-2 text-xs font-normal text-zinc-600">PoC</span>
         </h1>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-6">
-        {/* 入力 */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <Input
             value={riotId}
             onChange={(e) => setRiotId(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && loadList()}
-            placeholder="名前#タグ（例: Arisa#dps）"
-            className="h-9 w-56"
+            placeholder="名前#タグ"
+            className="h-9 w-52"
           />
           <Button onClick={loadList} disabled={loading} className="h-9">
             {loading ? "取得中…" : "試合を取得"}
@@ -143,10 +414,10 @@ export default function ReplayPoc() {
                 setMatchId(v);
                 void loadReplay(v);
               }}
-              className="min-w-[16rem]"
+              className="min-w-[20rem]"
             />
           )}
-          <span className="text-xs text-zinc-600">地域: asia (jp1)</span>
+          <span className="text-xs text-zinc-600">asia (jp1)</span>
         </div>
 
         {error && (
@@ -156,21 +427,36 @@ export default function ReplayPoc() {
         )}
 
         <div className="flex flex-col gap-4 lg:flex-row">
-          {/* マップ */}
-          <div className="relative aspect-square w-full max-w-[640px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-zinc-900">
+          {/* ① マップ */}
+          <div className="relative aspect-square w-full max-w-[560px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-zinc-900">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={MAP_IMAGE}
               alt=""
               className="absolute inset-0 h-full w-full object-cover opacity-90"
             />
-            {/* イベント（キル/オブジェクト） */}
+            {/* 自分のデス（全試合・常時） */}
+            {myDeaths.map((e, i) => (
+              <div
+                key={`d${i}`}
+                title={`自分のデス (${Math.round(e.ms / 60000)}分)`}
+                className="absolute z-10 -translate-x-1/2 -translate-y-1/2 text-red-500/70"
+                style={{ left: `${e.rx * 100}%`, top: `${e.ry * 100}%` }}
+              >
+                <Skull className="size-3.5" />
+              </div>
+            ))}
+            {/* 現在の分のイベント */}
             {nowEvents.map((e, i) => (
               <div
-                key={i}
+                key={`e${i}`}
                 title={e.type + (e.monsterType ? ` ${e.monsterType}` : "")}
-                className={`absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white/70 ${
-                  e.type === "CHAMPION_KILL" ? "bg-red-500" : "bg-amber-400"
+                className={`absolute z-20 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white/70 ${
+                  e.type === "CHAMPION_KILL"
+                    ? "bg-red-500"
+                    : e.type === "ELITE_MONSTER_KILL"
+                      ? "bg-amber-400"
+                      : "bg-zinc-300"
                 }`}
                 style={{ left: `${e.rx * 100}%`, top: `${e.ry * 100}%` }}
               />
@@ -180,21 +466,26 @@ export default function ReplayPoc() {
               const p = partById.get(pos.participantId);
               if (!p) return null;
               const blue = p.teamId === 100;
+              const isMe = !!me && p.participantId === me.participantId;
               return (
                 <div
                   key={pos.participantId}
                   title={`${p.championName} (${p.riotIdGameName})`}
-                  className="absolute z-20 -translate-x-1/2 -translate-y-1/2"
+                  className="absolute z-30 -translate-x-1/2 -translate-y-1/2"
                   style={{ left: `${pos.rx * 100}%`, top: `${pos.ry * 100}%` }}
                 >
                   <div
                     className={`overflow-hidden rounded-full ring-2 ${
-                      blue ? "ring-sky-400" : "ring-red-400"
+                      isMe
+                        ? "ring-yellow-300 ring-offset-1 ring-offset-black"
+                        : blue
+                          ? "ring-sky-400"
+                          : "ring-red-400"
                     }`}
                   >
                     <ChampionIcon
                       id={p.championName}
-                      className="h-7 w-7 rounded-full"
+                      className={isMe ? "h-8 w-8 rounded-full" : "h-6 w-6 rounded-full"}
                     />
                   </div>
                 </div>
@@ -207,14 +498,16 @@ export default function ReplayPoc() {
             )}
           </div>
 
-          {/* 情報パネル */}
+          {/* ② 情報パネル */}
           <div className="flex-1 space-y-3">
             {data && (
               <>
-                <div className="text-sm text-zinc-400">
-                  試合時間 {Math.floor(data.durationSec / 60)}分 / フレーム{" "}
-                  {data.frames.length}（1分粒度）
+                <div className="text-xs text-zinc-500">
+                  {queueName(data.queueId)} ・ {Math.floor(data.durationSec / 60)}
+                  分 ・ {data.frames.length}フレーム(1分)
                 </div>
+
+                {/* 再生＋スライダー */}
                 <div className="rounded-lg border border-white/10 bg-zinc-900 p-3">
                   <div className="mb-2 flex items-center gap-2">
                     <Button
@@ -244,39 +537,23 @@ export default function ReplayPoc() {
                   />
                 </div>
 
-                {/* 凡例（チーム） */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  {[100, 200].map((team) => (
-                    <div
-                      key={team}
-                      className="rounded-lg border border-white/10 bg-zinc-900 p-2"
-                    >
-                      <div
-                        className={`mb-1 font-bold ${team === 100 ? "text-sky-400" : "text-red-400"}`}
-                      >
-                        {team === 100 ? "ブルー" : "レッド"}
-                      </div>
-                      {(data.participants ?? [])
-                        .filter((p) => p.teamId === team)
-                        .map((p) => (
-                          <div
-                            key={p.participantId}
-                            className="flex items-center gap-1.5 py-0.5 text-zinc-300"
-                          >
-                            <ChampionIcon
-                              id={p.championName}
-                              className="h-4 w-4 rounded"
-                            />
-                            <span className="truncate">{p.championName}</span>
-                          </div>
-                        ))}
-                    </div>
-                  ))}
-                </div>
+                {/* 自分 vs 対面のリード差 */}
+                {me ? (
+                  <LeadPanel data={data} me={me} minute={minute} />
+                ) : (
+                  <div className="rounded-lg border border-white/10 bg-zinc-900 p-3 text-xs text-zinc-500">
+                    この試合にあなた（{riotId}）が見つからないため、リード差は表示できません。
+                  </div>
+                )}
               </>
             )}
           </div>
         </div>
+
+        {/* ③ 最終スコアボード */}
+        {data && (
+          <Scoreboard data={data} myPuuid={myPuuid} version={version} />
+        )}
       </main>
     </div>
   );

@@ -7,6 +7,7 @@ import { getSetting } from "@/server/actions/settings";
 import CoachUrlField from "./CoachUrlField";
 import DisplayNameField from "./DisplayNameField";
 import InviteManager from "./InviteManager";
+import RiotIdField from "./RiotIdField";
 import SignOutButton from "./SignOutButton";
 
 export default async function SettingsPage() {
@@ -16,6 +17,7 @@ export default async function SettingsPage() {
   const owner = isOwner(session.user.email);
   const allowed = owner ? await listAllowed() : [];
   const coachUrl = await getSetting("coachUrl");
+  const riotId = await getSetting("riotId");
 
   return (
     <div className="mx-auto h-full max-w-2xl overflow-y-auto px-6 py-12 text-zinc-100">
@@ -60,6 +62,15 @@ export default async function SettingsPage() {
           「コーチと話す」で開くURL（Claudeのプロジェクト等）。
         </p>
         <CoachUrlField initial={coachUrl} />
+      </section>
+
+      {/* Riot 連携 */}
+      <section className="mb-10">
+        <h2 className="mb-1 text-sm font-semibold text-zinc-400">Riot ID</h2>
+        <p className="mb-3 text-xs text-zinc-600">
+          試合リプレイで自分の試合を取得するのに使います。
+        </p>
+        <RiotIdField initial={riotId} />
       </section>
 
       {/* 招待（オーナーのみ） */}

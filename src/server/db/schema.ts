@@ -243,6 +243,17 @@ export const games = pgTable(
   ],
 );
 
+/**
+ * Riot Match-V5 の加工済みリプレイデータのキャッシュ。
+ * 試合は終了後に不変なので matchId 主キーのグローバルキャッシュにし、
+ * 一度取得したらAPIを再度叩かない（レート節約＋即表示＋キー失効に強い）。
+ */
+export const riotMatches = pgTable("riot_match", {
+  matchId: text("match_id").primaryKey(),
+  data: jsonb("data").notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+});
+
 export const plans = pgTable(
   "plan",
   {
