@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { useNotes, useSections } from "@/lib/store";
+import { patchNoteCache, useNotes, useSections } from "@/lib/store";
 import type { Note } from "@/lib/types";
-import { labelColor } from "./LabelEditor";
+import { updateNote } from "@/server/actions/notes";
+import LabelEditor, { labelColor } from "./LabelEditor";
 import { blocksToText } from "./noteText";
 import { CardGridSkeleton, TableSkeleton } from "./Skeleton";
 
@@ -105,6 +106,55 @@ function Select({
   );
 }
 
+/** テーブル上でタイトルをインライン編集（IME安全なローカルstate＋デバウンス保存） */
+function TitleCell({
+  id,
+  title,
+  onSave,
+}: {
+  id: string;
+  title: string;
+  onSave: (id: string, title: string) => void;
+}) {
+  const [value, setValue] = useState(title);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 別のノート行に切り替わった時だけ同期（編集中の値は保持＝IME対策）
+  useEffect(() => setValue(title), [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const change = (v: string) => {
+    setValue(v);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => onSave(id, v), 500);
+  };
+  const flush = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    onSave(id, value);
+  };
+  return (
+    <input
+      value={value}
+      onChange={(e) => change(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+      onBlur={flush}
+      placeholder="無題のノート"
+      className="w-full min-w-0 rounded bg-transparent px-1 font-medium text-zinc-100 outline-none transition placeholder:text-zinc-600 hover:bg-white/5 focus:bg-white/10"
+    />
+  );
+}
+
 type SortKey = "updated" | "title" | "section";
 type SortDir = "asc" | "desc";
 type Config = {
@@ -164,6 +214,24 @@ export default function NotesDatabase({
   const loading = !notes || !sections;
   const secName = (id?: string | null) =>
     id ? (sections ?? []).find((s) => s.id === id)?.name : undefined;
+
+  // インライン編集（楽観的にキャッシュ更新＋裏で保存）。updatedAtは変えず並びを固定。
+  const saveTitle = (id: string, title: string) => {
+    patchNoteCache(id, { title });
+    updateNote(id, { title });
+  };
+  const setNoteSection = (id: string, sectionId: string | null) => {
+    patchNoteCache(id, { sectionId });
+    updateNote(id, { sectionId });
+  };
+  const setNoteLabels = (id: string, labels: string[]) => {
+    patchNoteCache(id, { labels });
+    updateNote(id, { labels });
+  };
+  const sectionOptions = [
+    { value: "none", label: "未分類" },
+    ...(sections ?? []).map((s) => ({ value: s.id, label: s.name })),
+  ];
 
   const allLabels = [
     ...new Set((notes ?? []).flatMap((n) => n.labels ?? [])),
@@ -265,19 +333,47 @@ export default function NotesDatabase({
   const renderRow = (n: Note) => (
     <tr
       key={n.id}
-      onClick={() => onOpen(n.id)}
-      className="cursor-pointer border-b border-white/5 transition hover:bg-white/5"
+      className="group border-b border-white/5 align-top transition hover:bg-white/[0.03]"
     >
-      <td className="px-3 py-2 font-medium text-zinc-100">
-        <span className="line-clamp-1">{n.title || "無題のノート"}</span>
+      <td className="py-1 pl-2 pr-3">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => onOpen(n.id)}
+            title="開く"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-600 transition hover:bg-white/10 hover:text-sky-300"
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M7 17 17 7M9 7h8v8" />
+            </svg>
+          </button>
+          <TitleCell id={n.id} title={n.title || ""} onSave={saveTitle} />
+        </div>
       </td>
-      <td className="px-3 py-2">
-        <LabelChips labels={n.labels ?? []} />
+      <td className="px-3 py-1.5">
+        <LabelEditor
+          labels={n.labels ?? []}
+          allLabels={allLabels}
+          onChange={(ls) => setNoteLabels(n.id, ls)}
+        />
       </td>
-      <td className="px-3 py-2 text-zinc-400">
-        {secName(n.sectionId) ?? <span className="text-zinc-600">—</span>}
+      <td className="px-3 py-1.5">
+        <Select
+          value={n.sectionId ?? "none"}
+          minW="min-w-[8rem]"
+          options={sectionOptions}
+          onChange={(v) => setNoteSection(n.id, v === "none" ? null : v)}
+        />
       </td>
-      <td className="whitespace-nowrap px-3 py-2 text-zinc-500">
+      <td className="whitespace-nowrap px-3 py-1.5 text-zinc-500">
         {fmtDate(n.updatedAt)}
       </td>
     </tr>
