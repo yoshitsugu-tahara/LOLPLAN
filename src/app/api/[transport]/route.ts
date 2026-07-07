@@ -48,15 +48,19 @@ const secName = (m: Map<string, string>, id: string | null) =>
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
-/** 設定に保存済みのRiot puuid（「更新」時に保存される） */
-async function getPuuid(userId: string): Promise<string | null> {
+async function getSetting(
+  userId: string,
+  key: string,
+): Promise<string | null> {
   const rows = await db
     .select({ value: appSettings.value })
     .from(appSettings)
-    .where(and(eq(appSettings.userId, userId), eq(appSettings.key, "riotPuuid")))
+    .where(and(eq(appSettings.userId, userId), eq(appSettings.key, key)))
     .limit(1);
   return rows[0]?.value ?? null;
 }
+/** 設定に保存済みのRiot puuid（「更新」時に保存される） */
+const getPuuid = (userId: string) => getSetting(userId, "riotPuuid");
 const sgn = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
 const handler = createMcpHandler(
@@ -268,7 +272,18 @@ const handler = createMcpHandler(
           return text(
             "この試合はまだ取り込まれていません。アプリのリプレイで一度開いてください。",
           );
-        const me = data.participants.find((p) => p.puuid === puuid);
+        // 自分の特定: puuid優先、ダメならRiot IDの名前で照合
+        const gameName = ((await getSetting(userId, "riotId")) ?? "")
+          .split("#")[0]
+          .trim()
+          .toLowerCase();
+        const me =
+          data.participants.find((p) => p.puuid === puuid) ??
+          (gameName
+            ? data.participants.find(
+                (p) => (p.riotIdGameName ?? "").toLowerCase() === gameName,
+              )
+            : undefined);
         if (!me) return text("この試合にあなたが含まれていません。");
         const opp = opponentOf(me, data.participants);
         const teamOf = (pid?: number) =>

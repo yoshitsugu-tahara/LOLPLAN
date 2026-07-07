@@ -161,11 +161,11 @@ function LeadPanel({
 // ───────── 最終スコアボード ─────────
 function Scoreboard({
   data,
-  myPuuid,
+  mePid,
   version,
 }: {
   data: ReplayData;
-  myPuuid: string | null;
+  mePid: number | null;
   version: string | undefined;
 }) {
   return (
@@ -192,7 +192,7 @@ function Scoreboard({
                 {data.participants
                   .filter((p) => p.teamId === team)
                   .map((p) => {
-                    const isMe = !!myPuuid && p.puuid === myPuuid;
+                    const isMe = mePid != null && p.participantId === mePid;
                     return (
                       <tr
                         key={p.participantId}
@@ -285,10 +285,20 @@ export default function ReplayPoc() {
   }, [savedRiotId]);
 
   const maxMinute = data ? data.frames.length - 1 : 0;
-  const me = useMemo(
-    () => data?.participants.find((p) => p.puuid === myPuuid) ?? null,
-    [data, myPuuid],
-  );
+  // 自分の特定: puuid優先、ダメならRiot IDの名前で照合（Account-V1とMatch-V5で
+  // puuidが食い違うことがあるためフォールバックを持つ）
+  const me = useMemo(() => {
+    if (!data) return null;
+    const gm = riotId.split("#")[0]?.trim().toLowerCase();
+    return (
+      (myPuuid && data.participants.find((p) => p.puuid === myPuuid)) ||
+      (gm &&
+        data.participants.find(
+          (p) => (p.riotIdGameName ?? "").toLowerCase() === gm,
+        )) ||
+      null
+    );
+  }, [data, myPuuid, riotId]);
 
   // 訪問時：DBの保存済み一覧を即表示（Riotは叩かない）
   const loadCached = async () => {
@@ -582,7 +592,11 @@ export default function ReplayPoc() {
 
         {/* ③ 最終スコアボード */}
         {data && (
-          <Scoreboard data={data} myPuuid={myPuuid} version={version} />
+          <Scoreboard
+            data={data}
+            mePid={me?.participantId ?? null}
+            version={version}
+          />
         )}
       </main>
     </div>
