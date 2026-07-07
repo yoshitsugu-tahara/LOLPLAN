@@ -1,12 +1,31 @@
 "use client";
 
+import { ArrowDown, ArrowUp, ArrowUpRight, Plus, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { patchNoteCache, useNotes, useSections } from "@/lib/store";
 import type { Note } from "@/lib/types";
 import { updateNote } from "@/server/actions/notes";
 import LabelEditor, { labelColor } from "./LabelEditor";
 import { blocksToText } from "./noteText";
+import SimpleSelect from "./SimpleSelect";
 import { CardGridSkeleton, TableSkeleton } from "./Skeleton";
 
 function fmtDate(ts: number) {
@@ -28,81 +47,6 @@ function LabelChips({ labels }: { labels: string[] }) {
         </span>
       ))}
     </span>
-  );
-}
-
-/** ダークテーマに合わせた自作セレクト（ネイティブselectの置き換え） */
-function Select({
-  value,
-  options,
-  onChange,
-  minW = "min-w-[10rem]",
-}: {
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-  minW?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const current = options.find((o) => o.value === value);
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-zinc-200 transition hover:bg-white/10"
-      >
-        <span className="whitespace-nowrap">{current?.label}</span>
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`shrink-0 text-zinc-500 transition ${open ? "rotate-180" : ""}`}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div
-            className={`absolute left-0 z-20 mt-1 ${minW} overflow-hidden rounded-lg border border-white/10 bg-zinc-800 p-1 shadow-xl`}
-          >
-            {options.map((o) => (
-              <button
-                key={o.value}
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-white/10 ${
-                  o.value === value ? "text-sky-300" : "text-zinc-200"
-                }`}
-              >
-                <span className="truncate">{o.label}</span>
-                {o.value === value && (
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    className="shrink-0"
-                  >
-                    <path d="M5 12l5 5L20 7" />
-                  </svg>
-                )}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
   );
 }
 
@@ -198,7 +142,6 @@ export default function NotesDatabase({
     }
     return DEFAULT_CONFIG;
   });
-  const [labelOpen, setLabelOpen] = useState(false);
 
   const setV = (v: "table" | "gallery") => {
     setView(v);
@@ -290,32 +233,17 @@ export default function NotesDatabase({
     }
   };
 
-  const Tab = ({ id, label }: { id: "table" | "gallery"; label: string }) => (
-    <button
-      onClick={() => setV(id)}
-      className={`rounded-md px-2.5 py-1 text-sm transition ${
-        view === id
-          ? "bg-white/10 text-white"
-          : "text-zinc-400 hover:bg-white/5 hover:text-white"
-      }`}
-    >
-      {label}
-    </button>
-  );
-
   const SortArrow = ({ k }: { k: SortKey }) =>
     cfg.sortKey === k ? (
-      <span className="text-sky-400">{cfg.sortDir === "asc" ? "▲" : "▼"}</span>
+      cfg.sortDir === "asc" ? (
+        <ArrowUp className="size-3 text-sky-400" />
+      ) : (
+        <ArrowDown className="size-3 text-sky-400" />
+      )
     ) : null;
 
-  const Th = ({
-    label,
-    k,
-  }: {
-    label: string;
-    k?: SortKey;
-  }) => (
-    <th className="px-3 py-2">
+  const SortHead = ({ label, k }: { label: string; k?: SortKey }) => (
+    <TableHead className="text-zinc-500">
       {k ? (
         <button
           onClick={() => sortBy(k)}
@@ -327,56 +255,42 @@ export default function NotesDatabase({
       ) : (
         label
       )}
-    </th>
+    </TableHead>
   );
 
   const renderRow = (n: Note) => (
-    <tr
-      key={n.id}
-      className="group border-b border-white/5 align-top transition hover:bg-white/[0.03]"
-    >
-      <td className="py-1 pl-2 pr-3">
+    <TableRow key={n.id} className="group border-white/5 hover:bg-white/[0.03]">
+      <TableCell className="py-1 pl-2 pr-3">
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => onOpen(n.id)}
             title="開く"
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-600 transition hover:bg-white/10 hover:text-sky-300"
           >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M7 17 17 7M9 7h8v8" />
-            </svg>
+            <ArrowUpRight className="size-[13px]" />
           </button>
           <TitleCell id={n.id} title={n.title || ""} onSave={saveTitle} />
         </div>
-      </td>
-      <td className="px-3 py-1.5">
+      </TableCell>
+      <TableCell className="px-3 py-1.5">
         <LabelEditor
           labels={n.labels ?? []}
           allLabels={allLabels}
           onChange={(ls) => setNoteLabels(n.id, ls)}
         />
-      </td>
-      <td className="px-3 py-1.5">
-        <Select
+      </TableCell>
+      <TableCell className="px-3 py-1.5">
+        <SimpleSelect
           value={n.sectionId ?? "none"}
-          minW="min-w-[8rem]"
+          className="min-w-[8rem]"
           options={sectionOptions}
           onChange={(v) => setNoteSection(n.id, v === "none" ? null : v)}
         />
-      </td>
-      <td className="whitespace-nowrap px-3 py-1.5 text-zinc-500">
+      </TableCell>
+      <TableCell className="whitespace-nowrap px-3 py-1.5 text-zinc-500">
         {fmtDate(n.updatedAt)}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 
   return (
@@ -389,46 +303,33 @@ export default function NotesDatabase({
           {loading ? "" : rows.length}
         </span>
         <div className="flex-1" />
-        <div className="flex items-center gap-1 rounded-lg border border-white/10 p-0.5">
-          <Tab id="table" label="テーブル" />
-          <Tab id="gallery" label="ギャラリー" />
-        </div>
-        <button
-          onClick={onCreate}
-          className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-400"
-        >
-          ＋ 新規
-        </button>
+        <Tabs value={view} onValueChange={(v) => setV(v as "table" | "gallery")}>
+          <TabsList>
+            <TabsTrigger value="table">テーブル</TabsTrigger>
+            <TabsTrigger value="gallery">ギャラリー</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <Button onClick={onCreate} size="sm">
+          <Plus /> 新規
+        </Button>
       </div>
 
       {/* フィルター/ソート ツールバー */}
       {!loading && (
         <div className="mx-auto mt-4 flex w-full max-w-5xl flex-wrap items-center gap-2 px-8">
           {/* 検索 */}
-          <div className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              className="shrink-0 text-zinc-500"
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m21 21-4.3-4.3" />
-            </svg>
-            <input
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-zinc-500" />
+            <Input
               value={cfg.q}
               onChange={(e) => update({ q: e.target.value })}
               placeholder="絞り込み…"
-              className="w-32 bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
+              className="h-8 w-44 pl-8"
             />
           </div>
 
           {/* セクション */}
-          <Select
+          <SimpleSelect
             value={cfg.section}
             onChange={(v) => update({ section: v })}
             options={[
@@ -440,14 +341,19 @@ export default function NotesDatabase({
 
           {/* ラベル絞り込み */}
           {allLabels.length > 0 && (
-            <div className="relative">
-              <button
-                onClick={() => setLabelOpen((o) => !o)}
-                className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm transition ${
-                  cfg.labels.length
-                    ? "border-sky-400/40 bg-sky-500/10 text-sky-200"
-                    : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
-                }`}
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={
+                      cfg.labels.length
+                        ? "border-sky-400/40 bg-sky-500/10 text-sky-200 hover:bg-sky-500/15"
+                        : ""
+                    }
+                  />
+                }
               >
                 ラベル
                 {cfg.labels.length > 0 && (
@@ -455,67 +361,40 @@ export default function NotesDatabase({
                     {cfg.labels.length}
                   </span>
                 )}
-              </button>
-              {labelOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setLabelOpen(false)}
-                  />
-                  <div className="absolute left-0 z-20 mt-1 max-h-64 w-48 overflow-y-auto rounded-lg border border-white/10 bg-zinc-800 p-1 shadow-xl">
-                    {allLabels.map((l) => {
-                      const on = cfg.labels.includes(l);
-                      return (
-                        <button
-                          key={l}
-                          onClick={() =>
-                            update({
-                              labels: on
-                                ? cfg.labels.filter((x) => x !== l)
-                                : [...cfg.labels, l],
-                            })
-                          }
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-white/10"
-                        >
-                          <span
-                            className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                              on
-                                ? "border-sky-400 bg-sky-500 text-white"
-                                : "border-white/25"
-                            }`}
-                          >
-                            {on && (
-                              <svg
-                                width="10"
-                                height="10"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                              >
-                                <path d="M5 12l5 5L20 7" />
-                              </svg>
-                            )}
-                          </span>
-                          <span
-                            style={labelColor(l)}
-                            className="truncate rounded-full border px-2 py-0.5 text-xs font-medium"
-                          >
-                            {l}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
+              </PopoverTrigger>
+              <PopoverContent className="max-h-64 w-52 overflow-y-auto p-1">
+                {allLabels.map((l) => {
+                  const on = cfg.labels.includes(l);
+                  return (
+                    <button
+                      key={l}
+                      onClick={() =>
+                        update({
+                          labels: on
+                            ? cfg.labels.filter((x) => x !== l)
+                            : [...cfg.labels, l],
+                        })
+                      }
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-white/10"
+                    >
+                      <Checkbox checked={on} className="pointer-events-none" />
+                      <span
+                        style={labelColor(l)}
+                        className="truncate rounded-full border px-2 py-0.5 text-xs font-medium"
+                      >
+                        {l}
+                      </span>
+                    </button>
+                  );
+                })}
+              </PopoverContent>
+            </Popover>
           )}
 
           {/* ソート（ギャラリーはヘッダが無いのでここで） */}
           {view === "gallery" && (
             <div className="flex items-center gap-1">
-              <Select
+              <SimpleSelect
                 value={cfg.sortKey}
                 onChange={(v) => update({ sortKey: v as SortKey })}
                 options={[
@@ -524,27 +403,32 @@ export default function NotesDatabase({
                   { value: "section", label: "並び: セクション" },
                 ]}
               />
-              <button
+              <Button
+                variant="outline"
+                size="icon-sm"
                 onClick={() =>
                   update({ sortDir: cfg.sortDir === "asc" ? "desc" : "asc" })
                 }
                 title={cfg.sortDir === "asc" ? "昇順" : "降順"}
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-zinc-300 hover:bg-white/10"
               >
-                {cfg.sortDir === "asc" ? "▲" : "▼"}
-              </button>
+                {cfg.sortDir === "asc" ? (
+                  <ArrowUp />
+                ) : (
+                  <ArrowDown />
+                )}
+              </Button>
             </div>
           )}
 
           {filterActive && (
-            <button
-              onClick={() =>
-                update({ q: "", section: "all", labels: [] })
-              }
-              className="text-xs text-zinc-500 transition hover:text-zinc-300"
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => update({ q: "", section: "all", labels: [] })}
+              className="text-zinc-500 hover:text-zinc-300"
             >
               クリア
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -563,17 +447,17 @@ export default function NotesDatabase({
           )}
 
           {!loading && view === "table" && rows.length > 0 && (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-y border-white/10 text-left text-xs font-medium text-zinc-500">
-                  <Th label="タイトル" k="title" />
-                  <Th label="ラベル" />
-                  <Th label="セクション" k="section" />
-                  <Th label="更新" k="updated" />
-                </tr>
-              </thead>
-              <tbody>{rows.map(renderRow)}</tbody>
-            </table>
+            <Table className="text-sm">
+              <TableHeader>
+                <TableRow className="border-white/10 text-xs">
+                  <SortHead label="タイトル" k="title" />
+                  <SortHead label="ラベル" />
+                  <SortHead label="セクション" k="section" />
+                  <SortHead label="更新" k="updated" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>{rows.map(renderRow)}</TableBody>
+            </Table>
           )}
 
           {!loading && view === "gallery" && rows.length > 0 && (
