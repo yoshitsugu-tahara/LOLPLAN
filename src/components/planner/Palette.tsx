@@ -1,7 +1,9 @@
 "use client";
 
+import { Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { Input } from "@/components/ui/input";
 import {
   type Champion,
   championIcon,
@@ -80,13 +82,13 @@ function ChampCell({
           onToggleFav(c.id);
         }}
         title={isFav ? "お気に入り解除" : "お気に入りに追加"}
-        className={`absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-black/55 text-[11px] leading-none transition ${
+        className={`absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-black/55 transition ${
           isFav
             ? "text-yellow-400 opacity-100"
             : "text-white opacity-0 group-hover:opacity-100"
         }`}
       >
-        {isFav ? "★" : "☆"}
+        <Star className={`size-3 ${isFav ? "fill-yellow-400" : ""}`} />
       </button>
     </div>
   );
@@ -223,11 +225,11 @@ export default function Palette({
 
       {/* チャンピオン検索 */}
       <div className="px-2 pb-2">
-        <input
+        <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="チャンピオン検索…"
-          className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder:text-zinc-500 focus:border-sky-500 focus:outline-none"
+          className="h-8 w-full"
         />
       </div>
 

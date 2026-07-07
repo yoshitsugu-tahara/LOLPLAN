@@ -1,26 +1,28 @@
 "use client";
 
+import {
+  Eraser,
+  MousePointer2,
+  MoveUpRight,
+  Pen,
+  Redo2,
+  Slash,
+  Trash2,
+  Type,
+  Undo2,
+  type LucideIcon,
+} from "lucide-react";
+
 import { DRAW_COLORS } from "./data";
 import type { Tool } from "./shapes";
-import {
-  ArrowIcon,
-  CursorIcon,
-  EraserIcon,
-  LineIcon,
-  PenIcon,
-  RedoIcon,
-  TextIcon,
-  TrashIcon,
-  UndoIcon,
-} from "./icons";
 
-const TOOLS: { id: Tool; label: string; Icon: typeof CursorIcon }[] = [
-  { id: "select", label: "選択", Icon: CursorIcon },
-  { id: "pen", label: "ペン", Icon: PenIcon },
-  { id: "arrow", label: "矢印", Icon: ArrowIcon },
-  { id: "line", label: "線", Icon: LineIcon },
-  { id: "text", label: "テキスト", Icon: TextIcon },
-  { id: "eraser", label: "消しゴム", Icon: EraserIcon },
+const TOOLS: { id: Tool; label: string; Icon: LucideIcon }[] = [
+  { id: "select", label: "選択", Icon: MousePointer2 },
+  { id: "pen", label: "ペン", Icon: Pen },
+  { id: "arrow", label: "矢印", Icon: MoveUpRight },
+  { id: "line", label: "線", Icon: Slash },
+  { id: "text", label: "テキスト", Icon: Type },
+  { id: "eraser", label: "消しゴム", Icon: Eraser },
 ];
 
 export default function Toolbar({
@@ -53,7 +55,7 @@ export default function Toolbar({
               : "text-zinc-300 hover:bg-white/10 hover:text-white"
           }`}
         >
-          <Icon />
+          <Icon className="size-[18px]" />
         </button>
       ))}
 
@@ -82,21 +84,21 @@ export default function Toolbar({
         onClick={onUndo}
         className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 hover:text-white"
       >
-        <UndoIcon />
+        <Undo2 className="size-[18px]" />
       </button>
       <button
         title="やり直す"
         onClick={onRedo}
         className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 hover:text-white"
       >
-        <RedoIcon />
+        <Redo2 className="size-[18px]" />
       </button>
       <button
         title="選択を削除"
         onClick={onDelete}
         className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-red-500/80 hover:text-white"
       >
-        <TrashIcon />
+        <Trash2 className="size-[18px]" />
       </button>
     </div>
   );

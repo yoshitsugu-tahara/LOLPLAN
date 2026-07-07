@@ -1,8 +1,11 @@
 "use client";
 
+import { Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { useConfirm } from "@/components/ConfirmDialog";
+import { Button } from "@/components/ui/button";
 import { usePlans, reloadPlans } from "@/lib/store";
 import {
   createPlan as createPlanAction,
@@ -20,6 +23,7 @@ function formatDate(ts: number) {
 export default function PlannerGallery() {
   const router = useRouter();
   const { data: plans } = usePlans();
+  const confirm = useConfirm();
 
   const createPlan = async () => {
     const id = await createPlanAction();
@@ -29,7 +33,12 @@ export default function PlannerGallery() {
   const deletePlan = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!confirm("このプランを削除しますか？")) return;
+    const ok = await confirm({
+      title: "このプランを削除しますか？",
+      actionLabel: "削除",
+      destructive: true,
+    });
+    if (!ok) return;
     await deletePlanAction(id);
     reloadPlans();
   };
@@ -48,12 +57,9 @@ export default function PlannerGallery() {
             <span className="text-sky-400">SR</span> プランナー
           </h1>
         </div>
-        <button
-          onClick={createPlan}
-          className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-sky-400"
-        >
-          ＋ 新しいプラン
-        </button>
+        <Button onClick={createPlan} className="font-bold">
+          <Plus /> 新しいプラン
+        </Button>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 py-8">
@@ -62,12 +68,9 @@ export default function PlannerGallery() {
         {plans?.length === 0 && (
           <div className="flex flex-col items-center gap-4 py-24 text-center">
             <p className="text-zinc-500">まだプランがありません</p>
-            <button
-              onClick={createPlan}
-              className="rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-sky-400"
-            >
-              ＋ 最初のプランを作る
-            </button>
+            <Button onClick={createPlan} size="lg" className="font-bold">
+              <Plus /> 最初のプランを作る
+            </Button>
           </div>
         )}
 
@@ -92,9 +95,9 @@ export default function PlannerGallery() {
               <button
                 onClick={(e) => deletePlan(e, p.id)}
                 title="削除"
-                className="absolute right-2 top-2 rounded-md bg-black/60 px-2 py-1 text-xs text-zinc-300 opacity-0 transition hover:bg-red-500 hover:text-white group-hover:opacity-100"
+                className="absolute right-2 top-2 flex items-center justify-center rounded-md bg-black/60 p-1.5 text-zinc-300 opacity-0 transition hover:bg-red-500 hover:text-white group-hover:opacity-100"
               >
-                ✕
+                <X className="size-3.5" />
               </button>
             </Link>
           ))}
