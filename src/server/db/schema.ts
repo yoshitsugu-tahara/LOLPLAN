@@ -1,5 +1,6 @@
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -253,6 +254,27 @@ export const riotMatches = pgTable("riot_match", {
   data: jsonb("data").notNull(),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
+
+/**
+ * puuid ごとの試合サマリ・インデックス。「更新」時に埋める。
+ * リプレイページ訪問時に Riot を叩かず一覧を即表示するための軽量キャッシュ。
+ */
+export const riotMatchPlayers = pgTable(
+  "riot_match_player",
+  {
+    puuid: text("puuid").notNull(),
+    matchId: text("match_id").notNull(),
+    champ: text("champ"),
+    win: boolean("win"),
+    queueId: integer("queue_id"),
+    gameStart: bigint("game_start", { mode: "number" }),
+    duration: integer("duration"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.puuid, t.matchId] }),
+    index("rmp_puuid_start_idx").on(t.puuid, t.gameStart),
+  ],
+);
 
 export const plans = pgTable(
   "plan",

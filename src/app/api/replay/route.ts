@@ -1,9 +1,14 @@
-import { eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { db } from "@/server/db";
-import { riotMatches } from "@/server/db/schema";
+import { getUserId } from "@/server/session";
+import {
+  appSettings,
+  riotMatches,
+  riotMatchPlayers,
+} from "@/server/db/schema";
 import {
   gameToRel,
   type MatchSummary,
@@ -219,11 +224,40 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const riotId = url.searchParams.get("riotId");
-  const list = url.searchParams.get("list"); // "1" → 直近試合の一覧だけ返す
+  const list = url.searchParams.get("list"); // "1" → Riotから直近試合を取得（更新）
+  const cachedMode = url.searchParams.get("cached"); // "1" → DBの保存済み一覧だけ（Riot不要）
   const count = Math.min(20, Number(url.searchParams.get("count") ?? "10"));
   const matchId = url.searchParams.get("matchId");
 
   try {
+    // --- 保存済み一覧（訪問時に即表示・Riotを一切叩かない） ---
+    if (cachedMode) {
+      const uid = await getUserId();
+      const s = await db
+        .select({ value: appSettings.value })
+        .from(appSettings)
+        .where(and(eq(appSettings.userId, uid), eq(appSettings.key, "riotPuuid")))
+        .limit(1);
+      const savedPuuid = s[0]?.value;
+      if (!savedPuuid)
+        return NextResponse.json({ matches: [], needsRefresh: true });
+      const rows = await db
+        .select()
+        .from(riotMatchPlayers)
+        .where(eq(riotMatchPlayers.puuid, savedPuuid))
+        .orderBy(desc(riotMatchPlayers.gameStart))
+        .limit(count);
+      const matches: MatchSummary[] = rows.map((r) => ({
+        matchId: r.matchId,
+        champ: r.champ ?? "",
+        win: !!r.win,
+        queueId: r.queueId ?? 0,
+        gameStart: r.gameStart ?? 0,
+        duration: r.duration ?? 0,
+      }));
+      return NextResponse.json({ puuid: savedPuuid, matches });
+    }
+
     // --- 個別の試合：まずキャッシュ、無ければAPI ---
     if (matchId) {
       const cached = await getCached(matchId);
@@ -313,6 +347,32 @@ export async function GET(req: Request) {
         if (ALLOWED.has(s.queueId)) matches.push(s);
       }
       matches.sort((a, b) => b.gameStart - a.gameStart);
+
+      // 次回訪問時に Riot 無しで即表示できるよう、puuid とサマリを保存
+      const uid = await getUserId();
+      await db
+        .insert(appSettings)
+        .values({ userId: uid, key: "riotPuuid", value: puuid })
+        .onConflictDoUpdate({
+          target: [appSettings.userId, appSettings.key],
+          set: { value: puuid },
+        });
+      if (matches.length) {
+        await db
+          .insert(riotMatchPlayers)
+          .values(
+            matches.map((m) => ({
+              puuid,
+              matchId: m.matchId,
+              champ: m.champ,
+              win: m.win,
+              queueId: m.queueId,
+              gameStart: m.gameStart,
+              duration: m.duration,
+            })),
+          )
+          .onConflictDoNothing();
+      }
       return NextResponse.json({ puuid, matches });
     }
 

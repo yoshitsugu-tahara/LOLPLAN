@@ -1,6 +1,6 @@
 "use client";
 
-import { Pause, Play, Skull } from "lucide-react";
+import { Pause, Play, RefreshCw, Skull } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -290,15 +290,35 @@ export default function ReplayPoc() {
     [data, myPuuid],
   );
 
-  const loadList = async () => {
+  // 訪問時：DBの保存済み一覧を即表示（Riotは叩かない）
+  const loadCached = async () => {
+    try {
+      const res = await fetch(`/api/replay?cached=1&count=10`);
+      const j = await res.json();
+      if (!res.ok) return;
+      if (j.puuid) setMyPuuid(j.puuid);
+      setMatches(j.matches ?? []);
+      if (j.matches?.[0]) {
+        setMatchId(j.matches[0].matchId);
+        void loadReplay(j.matches[0].matchId);
+      }
+    } catch {
+      /* 保存済みが無ければ何もしない */
+    }
+  };
+  useEffect(() => {
+    void loadCached();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 「更新」：Riotから直近試合を取り直してDBに保存
+  const refresh = async () => {
     if (!riotId.trim()) {
       setError("設定でRiot IDを保存するか、ここに入力してください");
       return;
     }
     setError(null);
     setLoading(true);
-    setData(null);
-    setMatches([]);
     try {
       const res = await fetch(
         `/api/replay?list=1&count=10&riotId=${encodeURIComponent(riotId)}`,
@@ -307,7 +327,7 @@ export default function ReplayPoc() {
       if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
       setMyPuuid(j.puuid);
       setMatches(j.matches);
-      if (j.matches[0]) {
+      if (j.matches[0] && !data) {
         setMatchId(j.matches[0].matchId);
         void loadReplay(j.matches[0].matchId);
       }
@@ -399,12 +419,18 @@ export default function ReplayPoc() {
           <Input
             value={riotId}
             onChange={(e) => setRiotId(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loadList()}
+            onKeyDown={(e) => e.key === "Enter" && refresh()}
             placeholder="名前#タグ"
             className="h-9 w-52"
           />
-          <Button onClick={loadList} disabled={loading} className="h-9">
-            {loading ? "取得中…" : "試合を取得"}
+          <Button
+            onClick={refresh}
+            disabled={loading}
+            variant="outline"
+            className="h-9"
+            title="Riotから最新の試合を取り込む"
+          >
+            <RefreshCw className={loading ? "animate-spin" : ""} /> 更新
           </Button>
           {matches.length > 0 && (
             <SimpleSelect
@@ -492,8 +518,12 @@ export default function ReplayPoc() {
               );
             })}
             {!data && (
-              <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500">
-                {loading ? "読み込み中…" : "試合を取得してください"}
+              <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-zinc-500">
+                {loading
+                  ? "読み込み中…"
+                  : matches.length
+                    ? "試合を選んでください"
+                    : "「更新」で試合を取り込んでください"}
               </div>
             )}
           </div>

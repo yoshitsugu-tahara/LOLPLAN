@@ -64,6 +64,13 @@
       "when": 1783411851762,
       "tag": "0008_rainy_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783413227137,
+      "tag": "0009_serious_blizzard",
+      "breakpoints": true
     }
   ]
 }
