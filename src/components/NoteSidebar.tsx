@@ -368,6 +368,16 @@ export default function NoteSidebar({
         🗺️ <span>SRプランナー</span>
       </Link>
 
+      <Link
+        href="/replay"
+        className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
+      >
+        🎬 <span>試合リプレイ</span>
+        <span className="ml-auto rounded bg-white/10 px-1 text-[10px] text-zinc-500">
+          PoC
+        </span>
+      </Link>
+
       <button
         onClick={() => {
           if (coachUrl)
