@@ -3,6 +3,8 @@
 import { useSession } from "next-auth/react";
 import {
   ArrowUpRight,
+  ChevronDown,
+  ChevronRight,
   FileText,
   PanelLeftClose,
   Plus,
@@ -41,6 +43,7 @@ import { SidebarSkeleton } from "./Skeleton";
 import TemplateModal from "./TemplateModal";
 
 const NOTE_MIME = "application/x-lolnote-note";
+const COLLAPSED_KEY = "lolnote:collapsed-sections";
 
 type DropTarget = { id: string; pos: "before" | "after" | "into" } | null;
 
@@ -120,6 +123,30 @@ export default function NoteSidebar({
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
   // 絞り込み中のラベル（複数選択＝すべて含むノートのみ表示）
   const [filter, setFilter] = useState<string[]>([]);
+  // 折りたたみ中のセクションID（localStorageに永続化）
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const s = localStorage.getItem(COLLAPSED_KEY);
+      if (s) setCollapsed(new Set(JSON.parse(s)));
+    } catch {}
+  }, []);
+  const toggleCollapsed = (id: string) =>
+    setCollapsed((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      return next;
+    });
+  const expand = (id: string) =>
+    setCollapsed((cur) => {
+      if (!cur.has(id)) return cur;
+      const next = new Set(cur);
+      next.delete(id);
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      return next;
+    });
 
   // 最初のノートを自動選択（DB一覧表示中は勝手にエディタへ戻さない）
   useEffect(() => {
@@ -406,6 +433,8 @@ export default function NoteSidebar({
           {(sections ?? []).map((sec) => {
             const secNotes = notesOf(sec.id);
             if (filter.length && secNotes.length === 0) return null;
+            // ラベル絞り込み中は検索結果を隠さないよう常に展開
+            const isCollapsed = collapsed.has(sec.id) && !filter.length;
             return (
               <div key={sec.id} className="mt-3">
                 <ContextMenu>
@@ -416,9 +445,11 @@ export default function NoteSidebar({
                           if (!e.dataTransfer.types.includes(NOTE_MIME)) return;
                           e.preventDefault();
                           setDropTarget({ id: `sec-${sec.id}`, pos: "into" });
+                          // ドラッグ中に折りたたみ上へ来たら展開して中に落とせるように
+                          if (isCollapsed) expand(sec.id);
                         }}
                         onDrop={(e) => dropInto(e, sec.id)}
-                        className={`group/sec mb-1 flex items-center gap-1 rounded px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 ${
+                        className={`group/sec mb-1 flex items-center gap-0.5 rounded px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 ${
                           dropTarget?.id === `sec-${sec.id}`
                             ? "bg-sky-500/20"
                             : ""
@@ -440,23 +471,35 @@ export default function NoteSidebar({
                           if (e.key === "Enter") e.currentTarget.blur();
                           if (e.key === "Escape") setRenaming(null);
                         }}
-                        className="w-full bg-transparent py-1 uppercase text-white outline-none"
+                        className="w-full bg-transparent px-1 py-1 uppercase text-white outline-none"
                       />
                     ) : (
                       <>
-                        <span
-                          className="flex-1 cursor-default py-1"
-                          onDoubleClick={() => setRenaming(sec.id)}
+                        <button
+                          onClick={() => toggleCollapsed(sec.id)}
+                          title={isCollapsed ? "展開" : "折りたたむ"}
+                          className="flex h-5 flex-1 items-center gap-1 rounded py-1 text-left transition hover:text-zinc-300"
                         >
-                          {sec.name}
-                        </span>
+                          {isCollapsed ? (
+                            <ChevronRight className="size-3.5 shrink-0" />
+                          ) : (
+                            <ChevronDown className="size-3.5 shrink-0" />
+                          )}
+                          <span className="truncate">{sec.name}</span>
+                          {isCollapsed && secNotes.length > 0 && (
+                            <span className="ml-1 rounded-full bg-white/10 px-1.5 text-[10px] font-medium text-zinc-500">
+                              {secNotes.length}
+                            </span>
+                          )}
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            expand(sec.id);
                             onCreateNote(sec.id);
                           }}
                           title="ノートをここに追加"
-                          className="flex h-4 w-4 items-center justify-center rounded text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
                         >
                           <Plus className="size-3" />
                         </button>
@@ -486,7 +529,7 @@ export default function NoteSidebar({
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
-                {secNotes.map(renderNote)}
+                {!isCollapsed && secNotes.map(renderNote)}
               </div>
             );
           })}
