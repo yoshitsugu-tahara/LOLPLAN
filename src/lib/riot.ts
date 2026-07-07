@@ -123,6 +123,52 @@ export function regionLabel(rx: number, ry: number): string {
   return `${team}JG(${side})`;
 }
 
+export interface RankInfo {
+  tier: string | null; // GOLD 等（null=アンランク）
+  division: string | null;
+  lp: number;
+  wins: number;
+  losses: number;
+}
+
+const TIER_SHORT: Record<string, string> = {
+  IRON: "Iron",
+  BRONZE: "Bronze",
+  SILVER: "Silver",
+  GOLD: "Gold",
+  PLATINUM: "Plat",
+  EMERALD: "Emerald",
+  DIAMOND: "Diamond",
+  MASTER: "Master",
+  GRANDMASTER: "GM",
+  CHALLENGER: "Chall",
+};
+const APEX = ["MASTER", "GRANDMASTER", "CHALLENGER"];
+
+/** ランク表示（例: "Gold II" / "Diamond 32LP" / "Unranked"） */
+export function rankLabel(r?: RankInfo | null): string {
+  if (!r || !r.tier) return "Unranked";
+  const t = TIER_SHORT[r.tier] ?? r.tier;
+  return APEX.includes(r.tier) ? `${t} ${r.lp}LP` : `${t} ${r.division ?? ""}`.trim();
+}
+
+/** ランクtierの色（CSS色文字列） */
+export function tierColor(tier?: string | null): string {
+  const m: Record<string, string> = {
+    IRON: "#6b6b6b",
+    BRONZE: "#a97142",
+    SILVER: "#9aa4ad",
+    GOLD: "#e6b34d",
+    PLATINUM: "#4fd1c5",
+    EMERALD: "#34d399",
+    DIAMOND: "#7aa5ff",
+    MASTER: "#c084fc",
+    GRANDMASTER: "#f87171",
+    CHALLENGER: "#f5d76e",
+  };
+  return (tier && m[tier]) || "#71717a";
+}
+
 /** キューID → 表示名（主要なものだけ） */
 export function queueName(id: number): string {
   const m: Record<number, string> = {

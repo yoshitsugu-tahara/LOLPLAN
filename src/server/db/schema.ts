@@ -256,6 +256,19 @@ export const riotMatches = pgTable("riot_match", {
 });
 
 /**
+ * puuid ごとの現在ランク（League-V4）。ランクは変動するので TTL(24h) で取り直す。
+ */
+export const riotRanks = pgTable("riot_rank", {
+  puuid: text("puuid").primaryKey(),
+  tier: text("tier"), // GOLD 等（null=アンランク）
+  division: text("division"), // I..IV（Master+はnull）
+  lp: integer("lp"),
+  wins: integer("wins"),
+  losses: integer("losses"),
+  fetchedAt: bigint("fetched_at", { mode: "number" }).notNull(),
+});
+
+/**
  * puuid ごとの試合サマリ・インデックス。「更新」時に埋める。
  * リプレイページ訪問時に Riot を叩かず一覧を即表示するための軽量キャッシュ。
  */

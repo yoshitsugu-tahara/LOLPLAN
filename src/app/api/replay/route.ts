@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
@@ -8,10 +8,12 @@ import {
   appSettings,
   riotMatches,
   riotMatchPlayers,
+  riotRanks,
 } from "@/server/db/schema";
 import {
   gameToRel,
   type MatchSummary,
+  type RankInfo,
   type ReplayData,
   type ReplayEvent,
   type ReplayFrame,
@@ -20,8 +22,19 @@ import {
 
 export const runtime = "nodejs";
 
-// 日本(jp1)は regional routing クラスタ「asia」を使う（Account-V1 / Match-V5 共通）
+// Account-V1 / Match-V5 は regional クラスタ「asia」、League-V4 は platform「jp1」
 const REGION = "asia";
+const PLATFORM = "jp1";
+const RANK_TTL = 24 * 60 * 60 * 1000; // 24h
+
+interface LeagueEntry {
+  queueType: string;
+  tier: string;
+  rank: string;
+  leaguePoints: number;
+  wins: number;
+  losses: number;
+}
 
 // --- Riot API レスポンスのうち使う部分だけの型 ---
 interface RiotAccount {
@@ -93,8 +106,8 @@ interface TimelineDto {
   info: { frames: TLFrame[] };
 }
 
-async function riot<T>(path: string, key: string): Promise<T> {
-  const res = await fetch(`https://${REGION}.api.riotgames.com${path}`, {
+async function riotHost<T>(host: string, path: string, key: string): Promise<T> {
+  const res = await fetch(`https://${host}.api.riotgames.com${path}`, {
     headers: { "X-Riot-Token": key },
     cache: "no-store",
   });
@@ -103,6 +116,80 @@ async function riot<T>(path: string, key: string): Promise<T> {
     throw new Error(`Riot ${res.status} @ ${path} ${body.slice(0, 200)}`);
   }
   return res.json() as Promise<T>;
+}
+const riot = <T>(path: string, key: string) => riotHost<T>(REGION, path, key);
+
+/** puuidの現在ランクを取得（24hキャッシュ）。keyが無ければキャッシュ分だけ返す。 */
+async function getRanks(
+  puuids: string[],
+  key: string | undefined,
+): Promise<Record<string, RankInfo>> {
+  const out: Record<string, RankInfo> = {};
+  if (!puuids.length) return out;
+  const now = Date.now();
+  const rows = await db
+    .select()
+    .from(riotRanks)
+    .where(inArray(riotRanks.puuid, puuids));
+  const cache = new Map(rows.map((r) => [r.puuid, r]));
+  const toFetch: string[] = [];
+  for (const pu of puuids) {
+    const c = cache.get(pu);
+    if (c && now - c.fetchedAt < RANK_TTL) {
+      out[pu] = {
+        tier: c.tier,
+        division: c.division,
+        lp: c.lp ?? 0,
+        wins: c.wins ?? 0,
+        losses: c.losses ?? 0,
+      };
+    } else {
+      toFetch.push(pu);
+    }
+  }
+  if (toFetch.length && key) {
+    for (const pu of toFetch) {
+      try {
+        const entries = await riotHost<LeagueEntry[]>(
+          PLATFORM,
+          `/lol/league/v4/entries/by-puuid/${pu}`,
+          key,
+        );
+        const e =
+          entries.find((x) => x.queueType === "RANKED_SOLO_5x5") ??
+          entries.find((x) => x.queueType === "RANKED_FLEX_SR");
+        const info: RankInfo = e
+          ? {
+              tier: e.tier,
+              division: e.rank,
+              lp: e.leaguePoints,
+              wins: e.wins,
+              losses: e.losses,
+            }
+          : { tier: null, division: null, lp: 0, wins: 0, losses: 0 };
+        out[pu] = info;
+        await db
+          .insert(riotRanks)
+          .values({ puuid: pu, ...info, fetchedAt: now })
+          .onConflictDoUpdate({
+            target: riotRanks.puuid,
+            set: { ...info, fetchedAt: now },
+          });
+      } catch {
+        // 取得失敗（レート等）はスキップ。キャッシュがあればそれを使う。
+        const c = cache.get(pu);
+        if (c)
+          out[pu] = {
+            tier: c.tier,
+            division: c.division,
+            lp: c.lp ?? 0,
+            wins: c.wins ?? 0,
+            losses: c.losses ?? 0,
+          };
+      }
+    }
+  }
+  return out;
 }
 
 /** キャッシュ済みなら返す（試合は不変なので永久キャッシュ） */
@@ -226,10 +313,18 @@ export async function GET(req: Request) {
   const riotId = url.searchParams.get("riotId");
   const list = url.searchParams.get("list"); // "1" → Riotから直近試合を取得（更新）
   const cachedMode = url.searchParams.get("cached"); // "1" → DBの保存済み一覧だけ（Riot不要）
+  const ranksParam = url.searchParams.get("ranks"); // "puuid,puuid,..." → 現在ランク
   const count = Math.min(20, Number(url.searchParams.get("count") ?? "10"));
   const matchId = url.searchParams.get("matchId");
 
   try {
+    // --- 現在ランク（24hキャッシュ・League-V4） ---
+    if (ranksParam) {
+      const puuids = ranksParam.split(",").filter(Boolean).slice(0, 10);
+      const ranks = await getRanks(puuids, key);
+      return NextResponse.json({ ranks });
+    }
+
     // --- 保存済み一覧（訪問時に即表示・Riotを一切叩かない） ---
     if (cachedMode) {
       const uid = await getUserId();

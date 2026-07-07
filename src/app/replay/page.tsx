@@ -13,7 +13,10 @@ import { useSetting } from "@/lib/store";
 import {
   opponentOf,
   queueName,
+  rankLabel,
+  tierColor,
   type MatchSummary,
+  type RankInfo,
   type ReplayData,
   type ReplayParticipant,
   type ReplayStat,
@@ -163,10 +166,12 @@ function Scoreboard({
   data,
   mePid,
   version,
+  ranks,
 }: {
   data: ReplayData;
   mePid: number | null;
   version: string | undefined;
+  ranks: Record<string, RankInfo>;
 }) {
   return (
     <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -200,16 +205,30 @@ function Scoreboard({
                       >
                         <td className="py-1 pl-2 pr-1">
                           <div className="flex items-center gap-1.5">
-                            <ChampionIcon
-                              id={p.championName}
-                              className="h-7 w-7 rounded"
-                            />
+                            <div className="relative shrink-0">
+                              <ChampionIcon
+                                id={p.championName}
+                                className="h-7 w-7 rounded"
+                              />
+                              <span className="absolute -bottom-1 -right-1 rounded bg-black/85 px-0.5 text-[9px] font-bold leading-tight text-zinc-200">
+                                {p.champLevel}
+                              </span>
+                            </div>
                             <div className="min-w-0">
                               <div className="truncate font-medium text-zinc-200">
                                 {p.championName}
                               </div>
-                              <div className="truncate text-[10px] text-zinc-500">
-                                {p.riotIdGameName || p.role}
+                              <div
+                                className="truncate text-[10px]"
+                                style={{ color: tierColor(ranks[p.puuid]?.tier) }}
+                              >
+                                {rankLabel(ranks[p.puuid])}
+                                {p.riotIdGameName && (
+                                  <span className="text-zinc-600">
+                                    {" "}
+                                    · {p.riotIdGameName}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -270,6 +289,7 @@ export default function ReplayPoc() {
   const [matches, setMatches] = useState<MatchSummary[]>([]);
   const [matchId, setMatchId] = useState("");
   const [data, setData] = useState<ReplayData | null>(null);
+  const [ranks, setRanks] = useState<Record<string, RankInfo>>({});
   const [minute, setMinute] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -382,6 +402,22 @@ export default function ReplayPoc() {
       if (timer.current) clearInterval(timer.current);
     };
   }, [playing, maxMinute]);
+
+  // 試合が変わったら10人の現在ランクを取得（サーバ側で24hキャッシュ）
+  useEffect(() => {
+    if (!data) return;
+    setRanks({});
+    const puuids = data.participants.map((p) => p.puuid).filter(Boolean);
+    if (!puuids.length) return;
+    let alive = true;
+    fetch(`/api/replay?ranks=${encodeURIComponent(puuids.join(","))}`)
+      .then((r) => r.json())
+      .then((j) => alive && j.ranks && setRanks(j.ranks))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [data]);
 
   const frame = data?.frames[minute];
   const partById = useMemo(() => {
@@ -596,6 +632,7 @@ export default function ReplayPoc() {
             data={data}
             mePid={me?.participantId ?? null}
             version={version}
+            ranks={ranks}
           />
         )}
       </main>
