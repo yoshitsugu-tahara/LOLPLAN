@@ -1,5 +1,6 @@
 "use client";
 
+import { Monitor, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -7,6 +8,10 @@ import ChampionSelect, {
   ChampionIcon,
   useChampions,
 } from "@/components/ChampionSelect";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   reloadFocuses,
   reloadGames,
@@ -42,7 +47,7 @@ function FocusBoard() {
   };
 
   return (
-    <section className="rounded-xl border border-white/10 bg-zinc-900 p-4">
+    <Card className="gap-0 p-4">
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-300">今の意識</h2>
         <span className="text-[11px] text-zinc-600">1〜3個に絞ると効く</span>
@@ -70,28 +75,25 @@ function FocusBoard() {
               }}
               className="text-zinc-600 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
             >
-              ✕
+              <X className="size-3.5" />
             </button>
           </li>
         ))}
       </ul>
 
       <div className="flex gap-2">
-        <input
+        <Input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           placeholder="例: 3分のリコールタイミングを意識"
-          className="flex-1 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-sky-400"
+          className="h-9 flex-1"
         />
-        <button
-          onClick={add}
-          className="rounded-lg bg-sky-500 px-3 py-2 text-sm font-medium text-white hover:bg-sky-400"
-        >
+        <Button onClick={add} className="h-9">
           追加
-        </button>
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -170,7 +172,7 @@ function GameForm() {
   );
 
   return (
-    <section className="rounded-xl border border-white/10 bg-zinc-900 p-4">
+    <Card className="gap-0 p-4">
       <h2 className="mb-3 text-sm font-semibold text-zinc-300">試合を記録</h2>
 
       {/* 勝敗 */}
@@ -224,17 +226,17 @@ function GameForm() {
       </div>
 
       {/* 良かった点 / ミス */}
-      <input
+      <Input
         value={good}
         onChange={(e) => setGood(e.target.value)}
         placeholder="◎ よかった点（一言）"
-        className="mb-2 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-sky-400"
+        className="mb-2 h-9"
       />
-      <input
+      <Input
         value={mistake}
         onChange={(e) => setMistake(e.target.value)}
         placeholder="✕ 一番のミス（一言）"
-        className="mb-2 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-sky-400"
+        className="mb-2 h-9"
       />
 
       {/* ミスタグ */}
@@ -255,30 +257,28 @@ function GameForm() {
       </div>
 
       {/* 次の意識 */}
-      <input
+      <Input
         value={nextFocus}
         onChange={(e) => setNextFocus(e.target.value)}
         placeholder="→ 次の試合の意識（任意）"
-        className="mb-2 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-sky-400"
+        className="mb-2 h-9"
       />
       <label className="mb-3 flex items-center gap-2 text-xs text-zinc-400">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={addNext}
-          onChange={(e) => setAddNext(e.target.checked)}
-          className="accent-sky-500"
+          onCheckedChange={(v) => setAddNext(v === true)}
         />
         この意識を「今の意識」ボードに追加する
       </label>
 
-      <button
+      <Button
         onClick={save}
         disabled={!result || saving}
-        className="w-full rounded-lg bg-sky-500 py-2.5 text-sm font-bold text-white transition hover:bg-sky-400 disabled:opacity-40"
+        className="h-10 w-full font-bold"
       >
         {saving ? "記録中…" : "記録する"}
-      </button>
-    </section>
+      </Button>
+    </Card>
   );
 }
 
@@ -297,7 +297,7 @@ function RecentGames() {
   const l = today.length - w;
 
   return (
-    <section className="rounded-xl border border-white/10 bg-zinc-900 p-4">
+    <Card className="gap-0 p-4">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-zinc-300">最近の試合</h2>
         {today.length > 0 && (
@@ -354,12 +354,12 @@ function RecentGames() {
               }}
               className="shrink-0 text-zinc-600 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
             >
-              ✕
+              <X className="size-3.5" />
             </button>
           </li>
         ))}
       </ul>
-    </section>
+    </Card>
   );
 }
 
@@ -370,7 +370,7 @@ function MistakeTop() {
   const max = top[0]?.count ?? 1;
 
   return (
-    <section className="rounded-xl border border-white/10 bg-zinc-900 p-4">
+    <Card className="gap-0 p-4">
       <h2 className="mb-1 text-sm font-semibold text-zinc-300">
         頻出ミス（直近20試合）
       </h2>
@@ -397,21 +397,23 @@ function MistakeTop() {
               <span className="w-4 shrink-0 text-right text-xs text-zinc-500">
                 {s.count}
               </span>
-              <button
+              <Button
+                variant="outline"
+                size="xs"
                 onClick={async () => {
                   await addFocus(s.tag);
                   reloadFocuses();
                 }}
                 title="意識に追加"
-                className="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[11px] text-zinc-400 transition hover:border-sky-400/50 hover:text-sky-300"
+                className="shrink-0 text-zinc-400 hover:border-sky-400/50 hover:text-sky-300"
               >
-                ＋意識
-              </button>
+                <Plus /> 意識
+              </Button>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -430,31 +432,15 @@ export default function TrainPage() {
             練習<span className="text-sky-400">ループ</span>
           </h1>
         </div>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() =>
-            window.open(
-              "/focus",
-              "lolnote-focus",
-              "width=420,height=600",
-            )
+            window.open("/focus", "lolnote-focus", "width=420,height=600")
           }
-          className="flex items-center gap-1.5 rounded-lg border border-white/15 px-3 py-1.5 text-sm text-zinc-200 transition hover:bg-white/5"
         >
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="2" y="3" width="20" height="14" rx="2" />
-            <path d="M8 21h8M12 17v4" />
-          </svg>
-          サブモニター表示
-        </button>
+          <Monitor /> サブモニター表示
+        </Button>
       </header>
 
       <main className="mx-auto grid max-w-5xl gap-4 px-6 py-6 lg:grid-cols-2">

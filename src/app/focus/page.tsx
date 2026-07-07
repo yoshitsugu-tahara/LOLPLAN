@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { reloadFocuses, reloadGames, useFocuses, useGames } from "@/lib/store";
 
 export default function FocusHud() {
@@ -89,12 +90,14 @@ export default function FocusHud() {
       </div>
 
       {list.length > 0 && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => setDone(new Set())}
-          className="mt-4 self-center rounded-lg px-3 py-1.5 text-xs text-zinc-500 transition hover:bg-white/5 hover:text-zinc-300"
+          className="mt-4 self-center text-xs text-zinc-500 hover:text-zinc-300"
         >
           チェックをリセット（次の試合へ）
-        </button>
+        </Button>
       )}
     </div>
   );
