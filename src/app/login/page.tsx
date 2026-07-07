@@ -4,6 +4,8 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { Button } from "@/components/ui/button";
+
 function LoginCard() {
   const params = useSearchParams();
   const error = params.get("error");
@@ -47,9 +49,9 @@ function LoginCard() {
         </div>
       )}
 
-      <button
+      <Button
         onClick={() => signIn("google", { callbackUrl })}
-        className="flex w-full items-center justify-center gap-3 rounded-lg border border-white/15 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
+        className="h-11 w-full gap-3 border-white/15 bg-white text-sm text-zinc-800 hover:bg-zinc-100"
       >
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
           <path
@@ -70,15 +72,16 @@ function LoginCard() {
           />
         </svg>
         Google でログイン
-      </button>
+      </Button>
 
       {process.env.NODE_ENV === "development" && (
-        <button
+        <Button
+          variant="ghost"
           onClick={() => signIn("dev", { callbackUrl })}
-          className="mt-3 flex w-full items-center justify-center rounded-lg border border-dashed border-amber-500/40 px-4 py-2 text-xs text-amber-300/80 transition hover:bg-amber-500/10"
+          className="mt-3 h-9 w-full border border-dashed border-amber-500/40 text-xs text-amber-300/80 hover:bg-amber-500/10 hover:text-amber-200"
         >
           🔧 開発ログイン（OWNER_EMAIL）
-        </button>
+        </Button>
       )}
     </div>
   );

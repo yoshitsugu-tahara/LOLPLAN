@@ -3,6 +3,9 @@
 import { useSession } from "next-auth/react";
 import { useState, useTransition } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { updateDisplayName } from "@/server/actions/profile";
 
 export default function DisplayNameField({
@@ -31,7 +34,7 @@ export default function DisplayNameField({
   if (editing) {
     return (
       <div className="flex items-center gap-2">
-        <input
+        <Input
           autoFocus
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -44,47 +47,46 @@ export default function DisplayNameField({
           }}
           maxLength={80}
           placeholder="表示名"
-          className="w-44 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-sm text-white outline-none focus:border-sky-400"
+          className="h-7 w-44"
         />
-        <button
-          onClick={save}
-          disabled={pending}
-          className="rounded-md bg-sky-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-sky-400 disabled:opacity-50"
-        >
+        <Button size="xs" onClick={save} disabled={pending}>
           保存
-        </button>
-        <button
+        </Button>
+        <Button
+          size="xs"
+          variant="ghost"
           onClick={() => {
             setDraft(name);
             setEditing(false);
           }}
-          className="text-xs text-zinc-500 hover:text-zinc-300"
         >
           取消
-        </button>
+        </Button>
       </div>
     );
   }
 
   return (
     <div className="flex items-center gap-2">
-      <span className="truncate text-sm font-medium">
+      <span className="flex items-center gap-2 truncate text-sm font-medium">
         {name || "（表示名なし）"}
         {isOwner && (
-          <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] text-sky-300">
+          <Badge className="bg-sky-500/20 text-[10px] text-sky-300">
             オーナー
-          </span>
+          </Badge>
         )}
       </span>
-      <button
+      <Button
+        size="xs"
+        variant="ghost"
         onClick={() => {
           setDraft(name);
           setEditing(true);
         }}
-        className="text-xs text-zinc-500 transition hover:text-sky-300"
+        className="text-zinc-500 hover:text-sky-300"
       >
         編集
-      </button>
+      </Button>
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { addAllowed, removeAllowed } from "@/server/actions/allowlist";
 
 type Row = { email: string; invitedBy: string | null; createdAt: number };
@@ -41,21 +43,17 @@ export default function InviteManager({ initial }: { initial: Row[] }) {
   return (
     <div className="rounded-xl border border-white/10 bg-zinc-900 p-4">
       <div className="flex gap-2">
-        <input
+        <Input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           type="email"
           placeholder="invite@example.com"
-          className="flex-1 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-zinc-600 focus:border-sky-400"
+          className="h-9 flex-1"
         />
-        <button
-          onClick={add}
-          disabled={pending}
-          className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-sky-400 disabled:opacity-50"
-        >
+        <Button onClick={add} disabled={pending} className="h-9">
           招待
-        </button>
+        </Button>
       </div>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
 
@@ -71,13 +69,15 @@ export default function InviteManager({ initial }: { initial: Row[] }) {
             className="flex items-center justify-between py-2.5 text-sm"
           >
             <span className="truncate text-zinc-200">{r.email}</span>
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => remove(r.email)}
               disabled={pending}
-              className="shrink-0 text-xs text-zinc-500 transition hover:text-red-400 disabled:opacity-50"
+              className="shrink-0 text-zinc-500 hover:text-red-400"
             >
               削除
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
