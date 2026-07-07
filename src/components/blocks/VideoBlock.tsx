@@ -1,8 +1,11 @@
 "use client";
 
 import { createReactBlockSpec } from "@blocknote/react";
+import { ChevronRight, ChevronUp, List } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toEmbedUrl, youtubeId, youtubeThumb } from "./video-url";
 
 export const VideoBlock = createReactBlockSpec(
@@ -84,23 +87,20 @@ export const VideoBlock = createReactBlockSpec(
             <span className="min-w-0 flex-1 truncate text-sm text-zinc-400">
               {url}
             </span>
-            <button
+            <Button
+              size="sm"
               onClick={() =>
                 editor.updateBlock(block, {
                   type: "video",
                   props: { url, mode: "embed" },
                 })
               }
-              className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
             >
               埋め込む
-            </button>
-            <button
-              onClick={keepAsLink}
-              className="rounded px-3 py-1 text-sm text-zinc-300 hover:bg-white/10"
-            >
+            </Button>
+            <Button size="sm" variant="ghost" onClick={keepAsLink}>
               リンクのまま
-            </button>
+            </Button>
           </div>
         );
       }
@@ -158,19 +158,7 @@ export const VideoBlock = createReactBlockSpec(
                   title="クリックで展開 / 右クリックで名前を編集"
                   className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-sm text-zinc-400 transition hover:bg-white/10"
                 >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="shrink-0"
-                  >
-                    <path d="m9 18 6-6-6-6" />
-                  </svg>
+                  <ChevronRight className="size-3.5 shrink-0" />
                   <span className="shrink-0">🎬</span>
                   <span className="min-w-0 flex-1 truncate text-zinc-300">
                     {display}
@@ -206,18 +194,7 @@ export const VideoBlock = createReactBlockSpec(
                       : "bg-black/60 hover:bg-black/80"
                   }`}
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M4 6h16M4 12h16M4 18h10" />
-                  </svg>
+                  <List className="size-4" />
                 </button>
                 <button
                   onClick={(e) => {
@@ -227,18 +204,7 @@ export const VideoBlock = createReactBlockSpec(
                   title="折りたたむ"
                   className="flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white transition hover:bg-black/80"
                 >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m18 15-6-6-6 6" />
-                  </svg>
+                  <ChevronUp className="size-4" />
                 </button>
               </div>
               {ytId && !playing ? (
@@ -303,7 +269,7 @@ export const VideoBlock = createReactBlockSpec(
             🎬 動画を埋め込む（YouTube / Twitch）
           </div>
           <div className="flex gap-2">
-            <input
+            <Input
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -314,14 +280,11 @@ export const VideoBlock = createReactBlockSpec(
                 }
               }}
               placeholder="https://www.youtube.com/watch?v=..."
-              className="flex-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-sky-400"
+              className="h-8 flex-1"
             />
-            <button
-              onClick={submit}
-              className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
-            >
+            <Button size="sm" onClick={submit} className="h-8">
               埋め込む
-            </button>
+            </Button>
           </div>
           {draft && !toEmbedUrl(draft) && (
             <div className="mt-1 text-xs text-red-500">

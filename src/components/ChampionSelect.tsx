@@ -1,7 +1,14 @@
 "use client";
 
+import { ChevronDown, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 import { championIcon, getChampions, getVersion, type Champion } from "@/lib/ddragon";
 import { reloadFavoriteChampions, useFavoriteChampions } from "@/lib/store";
 import { toggleFavoriteChampion } from "@/server/actions/favorites";
@@ -86,13 +93,13 @@ function Cell({
           reloadFavoriteChampions();
         }}
         title={fav ? "お気に入り解除" : "お気に入りに追加"}
-        className={`absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded bg-black/55 text-[10px] leading-none transition ${
+        className={`absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded bg-black/55 transition ${
           fav
             ? "text-yellow-400 opacity-100"
             : "text-white opacity-0 group-hover:opacity-100"
         }`}
       >
-        {fav ? "★" : "☆"}
+        <Star className={`size-2.5 ${fav ? "fill-yellow-400" : ""}`} />
       </button>
     </div>
   );
@@ -133,10 +140,11 @@ export default function ChampionSelect({
   };
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex h-[34px] items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 text-sm text-zinc-200 transition hover:bg-white/10"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button className="flex h-[34px] items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 text-sm text-zinc-200 transition hover:bg-white/10" />
+        }
       >
         {selected ? (
           <>
@@ -146,96 +154,67 @@ export default function ChampionSelect({
         ) : (
           <span className="text-zinc-500">チャンプ</span>
         )}
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className={`text-zinc-500 transition ${open ? "rotate-180" : ""}`}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </button>
-
-      {open && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setOpen(false)}
+        <ChevronDown className="size-3 text-zinc-500" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-2">
+        <div className="mb-2 flex items-center gap-1.5">
+          <Input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="検索…"
+            className="h-8 flex-1"
           />
-          <div className="absolute left-0 z-20 mt-1 w-64 rounded-lg border border-white/10 bg-zinc-800 p-2 shadow-xl">
-            <div className="mb-2 flex items-center gap-1.5">
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="検索…"
-                className="flex-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-sm text-white outline-none placeholder:text-zinc-500 focus:border-sky-400"
-              />
-              {value && (
-                <button
-                  onClick={() => {
-                    onChange("");
-                    setOpen(false);
-                  }}
-                  className="shrink-0 rounded-md px-1.5 py-1 text-xs text-zinc-500 hover:text-zinc-300"
-                >
-                  なし
-                </button>
+          {value && (
+            <button
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className="shrink-0 rounded-md px-1.5 py-1 text-xs text-zinc-500 hover:text-zinc-300"
+            >
+              なし
+            </button>
+          )}
+        </div>
+        {!data ? (
+          <p className="py-4 text-center text-xs text-zinc-500">読み込み中…</p>
+        ) : (
+          <div className="no-scrollbar max-h-56 overflow-y-auto">
+            {showFav && (
+              <>
+                <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/80">
+                  ★ お気に入り
+                </div>
+                <div className="mb-2 grid grid-cols-6 gap-1">
+                  {favChamps.map((c) => (
+                    <Cell key={c.id} c={c} value={value} fav onPick={pick} />
+                  ))}
+                </div>
+                <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                  すべて
+                </div>
+              </>
+            )}
+            <div className="grid grid-cols-6 gap-1">
+              {filtered.map((c) => (
+                <Cell
+                  key={c.id}
+                  c={c}
+                  value={value}
+                  fav={favSet.has(c.id)}
+                  onPick={pick}
+                />
+              ))}
+              {filtered.length === 0 && (
+                <p className="col-span-6 py-3 text-center text-xs text-zinc-500">
+                  該当なし
+                </p>
               )}
             </div>
-            {!data ? (
-              <p className="py-4 text-center text-xs text-zinc-500">
-                読み込み中…
-              </p>
-            ) : (
-              <div className="no-scrollbar max-h-56 overflow-y-auto">
-                {showFav && (
-                  <>
-                    <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500/80">
-                      ★ お気に入り
-                    </div>
-                    <div className="mb-2 grid grid-cols-6 gap-1">
-                      {favChamps.map((c) => (
-                        <Cell
-                          key={c.id}
-                          c={c}
-                          value={value}
-                          fav
-                          onPick={pick}
-                        />
-                      ))}
-                    </div>
-                    <div className="mb-1 px-0.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
-                      すべて
-                    </div>
-                  </>
-                )}
-                <div className="grid grid-cols-6 gap-1">
-                  {filtered.map((c) => (
-                    <Cell
-                      key={c.id}
-                      c={c}
-                      value={value}
-                      fav={favSet.has(c.id)}
-                      onPick={pick}
-                    />
-                  ))}
-                  {filtered.length === 0 && (
-                    <p className="col-span-6 py-3 text-center text-xs text-zinc-500">
-                      該当なし
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
-        </>
-      )}
-    </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

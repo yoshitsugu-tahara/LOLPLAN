@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 /** ラベル名から安定した色を作る */
@@ -65,7 +66,7 @@ export default function LabelEditor({
             className="opacity-60 transition hover:opacity-100"
             title="削除"
           >
-            ✕
+            <X className="size-3" />
           </button>
         </span>
       ))}
@@ -129,7 +130,7 @@ export default function LabelEditor({
           onClick={() => setAdding(true)}
           className="inline-flex items-center gap-1 rounded-full border border-dashed border-white/20 px-2 py-0.5 text-xs text-zinc-400 transition hover:border-white/40 hover:text-white"
         >
-          ＋ ラベル
+          <Plus className="size-3" /> ラベル
         </button>
       )}
     </div>

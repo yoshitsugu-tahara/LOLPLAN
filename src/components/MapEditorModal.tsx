@@ -3,6 +3,7 @@
 import type Konva from "konva";
 import { useCallback, useRef } from "react";
 
+import { Button } from "@/components/ui/button";
 import { reloadMap } from "@/lib/store";
 import { getMap, upsertMap } from "@/server/actions/maps";
 import { MAP_SIZE } from "./planner/data";
@@ -70,12 +71,9 @@ export default function MapEditorModal({
       <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-white/10 bg-zinc-900 shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-2">
           <span className="font-medium text-zinc-200">🗺️ マップ注釈</span>
-          <button
-            onClick={handleClose}
-            className="rounded bg-sky-500 px-3 py-1 text-sm font-medium text-white hover:bg-sky-400"
-          >
+          <Button size="sm" onClick={handleClose}>
             閉じる
-          </button>
+          </Button>
         </div>
         <KonvaBoard
           load={load}
