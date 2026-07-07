@@ -4,9 +4,23 @@ import { z } from "zod";
 
 import { blocksToText } from "@/components/noteText";
 import { getOrigin } from "@/lib/origin";
+import {
+  opponentOf,
+  queueName,
+  regionLabel,
+  type ReplayData,
+} from "@/lib/riot";
 import { roleLabel } from "@/lib/training-data";
 import { db } from "@/server/db";
-import { focuses, games, notes, sections } from "@/server/db/schema";
+import {
+  appSettings,
+  focuses,
+  games,
+  notes,
+  riotMatches,
+  riotMatchPlayers,
+  sections,
+} from "@/server/db/schema";
 import { mcpResource, verifyAccessToken } from "@/server/oauth";
 
 export const runtime = "nodejs";
@@ -31,6 +45,19 @@ async function sectionMap(userId: string): Promise<Map<string, string>> {
 }
 const secName = (m: Map<string, string>, id: string | null) =>
   id ? (m.get(id) ?? "?") : "未分類";
+
+const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
+
+/** 設定に保存済みのRiot puuid（「更新」時に保存される） */
+async function getPuuid(userId: string): Promise<string | null> {
+  const rows = await db
+    .select({ value: appSettings.value })
+    .from(appSettings)
+    .where(and(eq(appSettings.userId, userId), eq(appSettings.key, "riotPuuid")))
+    .limit(1);
+  return rows[0]?.value ?? null;
+}
+const sgn = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
 const handler = createMcpHandler(
   (server) => {
@@ -193,6 +220,110 @@ const handler = createMcpHandler(
             },
           ],
         };
+      },
+    );
+
+    server.tool(
+      "recent_matches",
+      "Riot連携で取り込んだ実際の試合（ノーマル/ランク）の一覧。matchId・チャンプ・勝敗・キュー・日付。詳細分析は get_match に matchId を渡す。※アプリで『更新』した試合だけが対象。",
+      { limit: z.number().optional().describe("件数（既定15・最大30）") },
+      async ({ limit }, extra) => {
+        const userId = uid(extra);
+        const puuid = await getPuuid(userId);
+        if (!puuid)
+          return text(
+            "Riot ID未連携。アプリの設定でRiot IDを保存し、リプレイ画面で『更新』してください。",
+          );
+        const rows = await db
+          .select()
+          .from(riotMatchPlayers)
+          .where(eq(riotMatchPlayers.puuid, puuid))
+          .orderBy(desc(riotMatchPlayers.gameStart))
+          .limit(Math.min(limit ?? 15, 30));
+        if (!rows.length)
+          return text("保存済みの試合がありません（アプリで『更新』してください）。");
+        const lines = rows.map(
+          (r) =>
+            `- [${r.matchId}] ${r.champ} ${r.win ? "勝" : "負"} / ${queueName(r.queueId ?? 0)} / ${fmtDate(r.gameStart ?? 0)}`,
+        );
+        return text(lines.join("\n"));
+      },
+    );
+
+    server.tool(
+      "get_match",
+      "実際の試合の自分視点コーチング要約：自分と対面(同ロール敵)の最終スタッツ、時間ごとのゴールド/CS/レベルのリード差、自分のデス(時刻+エリア)、オブジェクト。matchIdは recent_matches の[]内。※アプリで取り込み済みの試合のみ。",
+      { matchId: z.string().describe("試合ID（recent_matchesの[]内）") },
+      async ({ matchId }, extra) => {
+        const userId = uid(extra);
+        const puuid = await getPuuid(userId);
+        if (!puuid) return text("Riot ID未連携。");
+        const rows = await db
+          .select({ data: riotMatches.data })
+          .from(riotMatches)
+          .where(eq(riotMatches.matchId, matchId))
+          .limit(1);
+        const data = rows[0]?.data as ReplayData | undefined;
+        if (!data)
+          return text(
+            "この試合はまだ取り込まれていません。アプリのリプレイで一度開いてください。",
+          );
+        const me = data.participants.find((p) => p.puuid === puuid);
+        if (!me) return text("この試合にあなたが含まれていません。");
+        const opp = opponentOf(me, data.participants);
+        const teamOf = (pid?: number) =>
+          data.participants.find((p) => p.participantId === pid)?.teamId;
+
+        const kda = (p: typeof me) => `${p.kills}/${p.deaths}/${p.assists}`;
+        const out: string[] = [];
+        out.push(
+          `# ${queueName(data.queueId)} ・ ${Math.floor(data.durationSec / 60)}分 ・ ${me.win ? "勝利" : "敗北"}`,
+        );
+        out.push(
+          `自分: ${me.championName} (${me.role}) KDA ${kda(me)} / CS ${me.cs}(${me.csPerMin.toFixed(1)}/分) / ゴールド ${me.gold} / 与ダメ ${me.dmgToChamps} / 視界 ${me.visionScore}`,
+        );
+        if (opp)
+          out.push(
+            `対面: ${opp.championName} KDA ${kda(opp)} / CS ${opp.cs} / ゴールド ${opp.gold} / 与ダメ ${opp.dmgToChamps}`,
+          );
+
+        // リード差（自分 - 対面）チェックポイント
+        if (opp) {
+          const cps = [5, 10, 15, 20].filter((m) => m < data.frames.length);
+          const last = data.frames.length - 1;
+          if (!cps.includes(last)) cps.push(last);
+          const statAt = (min: number, pid: number) =>
+            data.frames[min]?.stats.find((s) => s.participantId === pid);
+          const lines = cps.map((m) => {
+            const a = statAt(m, me.participantId);
+            const b = statAt(m, opp.participantId);
+            if (!a || !b) return `- ${m}分: データなし`;
+            const label = m === last ? "終盤" : `${m}分`;
+            return `- ${label}: ゴールド ${sgn(a.totalGold - b.totalGold)} / CS ${sgn(a.cs - b.cs)} / Lv ${sgn(a.level - b.level)}`;
+          });
+          out.push(`\n## 対面とのリード差（自分−対面）\n${lines.join("\n")}`);
+        }
+
+        // 自分のデス
+        const deaths = data.events
+          .filter(
+            (e) => e.type === "CHAMPION_KILL" && e.victimId === me.participantId,
+          )
+          .map((e) => `- ${Math.round(e.ms / 60000)}分 ${regionLabel(e.rx, e.ry)}`);
+        out.push(
+          `\n## 自分のデス（${deaths.length}回）\n${deaths.length ? deaths.join("\n") : "- なし"}`,
+        );
+
+        // オブジェクト（ドラゴン/バロン/ヘラルド）
+        const objs = data.events
+          .filter((e) => e.type === "ELITE_MONSTER_KILL")
+          .map((e) => {
+            const mine = teamOf(e.killerId) === me.teamId;
+            return `- ${Math.round(e.ms / 60000)}分 ${e.monsterType ?? "?"} (${mine ? "自軍" : "敵軍"})`;
+          });
+        if (objs.length) out.push(`\n## オブジェクト\n${objs.join("\n")}`);
+
+        return text(out.join("\n"));
       },
     );
   },

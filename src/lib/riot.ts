@@ -101,6 +101,28 @@ export function opponentOf(
   return all.find((p) => p.teamId !== me.teamId && p.role === me.role);
 }
 
+/**
+ * 相対座標(rx,ry: 0..1, 画像左上原点) → SR のエリア名ラベル。
+ * ブルー拠点=左下 / レッド拠点=右上 の標準向き。LLMに位置を渡す用の粗いラベル。
+ */
+export function regionLabel(rx: number, ry: number): string {
+  if (rx < 0.14 && ry > 0.86) return "ブルー拠点";
+  if (rx > 0.86 && ry < 0.14) return "レッド拠点";
+  const center = Math.hypot(rx - 0.5, ry - 0.5);
+  if (center < 0.1) return "川(中央)";
+  const diag = rx + ry - 1; // <0 = トップ側 / >0 = ボット側
+  if (Math.abs(diag) < 0.14) return "ミッドレーン";
+  const nearTopEdge = ry < 0.22 || rx < 0.22;
+  const nearBotEdge = ry > 0.78 || rx > 0.78;
+  if (diag < 0 && nearTopEdge) return "トップレーン";
+  if (diag > 0 && nearBotEdge) return "ボットレーン";
+  const side = diag < 0 ? "トップ側" : "ボット側";
+  const dBlue = Math.hypot(rx - 0, ry - 1);
+  const dRed = Math.hypot(rx - 1, ry - 0);
+  const team = dBlue < dRed ? "ブルー" : "レッド";
+  return `${team}JG(${side})`;
+}
+
 /** キューID → 表示名（主要なものだけ） */
 export function queueName(id: number): string {
   const m: Record<number, string> = {
