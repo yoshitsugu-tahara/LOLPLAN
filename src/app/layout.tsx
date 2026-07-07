@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "lolnote",
@@ -13,7 +17,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" className="h-full antialiased">
+    <html
+      lang="ja"
+      className={cn("dark h-full antialiased", "font-sans", geist.variable)}
+    >
       <body className="h-full">
         <Providers>{children}</Providers>
       </body>
