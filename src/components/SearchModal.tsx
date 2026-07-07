@@ -1,13 +1,16 @@
 "use client";
 
-import {
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 
+import {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { useNotes, useSections } from "@/lib/store";
 import { labelColor } from "./LabelEditor";
 import { blocksToText } from "./noteText";
@@ -109,11 +112,9 @@ export default function SearchModal({
   onSelect: (id: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const [active, setActive] = useState(0);
   const { data: notes } = useNotes();
   const { data: sections } = useSections();
   const dq = useDeferredValue(q);
-  const activeRef = useRef<HTMLButtonElement | null>(null);
 
   // インデックスは notes/sections が変わった時だけ構築（blocksToText再計算を避ける）
   const index = useMemo<Indexed[]>(() => {
@@ -158,118 +159,68 @@ export default function SearchModal({
 
   const isEmptyQuery = !dq.trim();
 
-  useEffect(() => setActive(0), [dq]);
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest" });
-  }, [active]);
-
   const choose = (id: string) => {
     onSelect(id);
     onClose();
   };
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") onClose();
-    else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActive((a) => Math.min(results.length - 1, a + 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActive((a) => Math.max(0, a - 1));
-    } else if (e.key === "Enter" && results[active]) {
-      e.preventDefault();
-      choose(results[active].item.id);
-    }
-  };
-
   return (
-    <div
-      className="fixed inset-0 z-[60] flex justify-center bg-black/50 pt-[12vh]"
-      onClick={onClose}
+    <CommandDialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+      className="top-[12vh] max-w-xl"
     >
-      <div
-        className="flex h-fit max-h-[70vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-white/10 bg-zinc-900 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={onKeyDown}
-      >
-        <div className="flex items-center gap-2 border-b border-white/10 px-4">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            className="shrink-0 text-zinc-500"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="ノート・セクション・ラベルを検索…（スペースで絞り込み）"
-            className="flex-1 bg-transparent py-3 text-sm text-white outline-none placeholder:text-zinc-500"
-          />
-          <kbd className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-zinc-400">
-            Esc
-          </kbd>
-        </div>
-
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-2">
-          {isEmptyQuery && results.length > 0 && (
-            <div className="px-3 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wider text-zinc-600">
-              最近のノート
-            </div>
-          )}
-          {!isEmptyQuery && results.length === 0 && (
-            <p className="px-3 py-6 text-center text-sm text-zinc-500">
-              一致するノートがありません
-            </p>
-          )}
-          {results.map((r, i) => {
-            const { item, terms } = r;
-            const snip = terms.length ? snippetOf(item.text, terms) : "";
-            return (
-              <button
-                key={item.id}
-                ref={i === active ? activeRef : null}
-                onClick={() => choose(item.id)}
-                onMouseEnter={() => setActive(i)}
-                className={`flex w-full flex-col items-start gap-1 rounded-lg px-3 py-2 text-left transition ${
-                  i === active ? "bg-white/10" : "hover:bg-white/5"
-                }`}
-              >
-                <div className="flex w-full items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">
-                    <Highlight text={item.title} terms={terms} />
-                  </span>
-                  {item.sectionName && (
-                    <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-400">
-                      <Highlight text={item.sectionName} terms={terms} />
+      {/* 自前スコアリングで並べるので cmdk のフィルタは無効化 */}
+      <Command shouldFilter={false}>
+        <CommandInput
+          autoFocus
+          value={q}
+          onValueChange={setQ}
+          placeholder="ノート・セクション・ラベルを検索…（スペースで絞り込み）"
+        />
+        <CommandList className="max-h-[60vh]">
+          <CommandEmpty>一致するノートがありません</CommandEmpty>
+          <CommandGroup heading={isEmptyQuery ? "最近のノート" : undefined}>
+            {results.map(({ item, terms }) => {
+              const snip = terms.length ? snippetOf(item.text, terms) : "";
+              return (
+                <CommandItem
+                  key={item.id}
+                  value={item.id}
+                  onSelect={() => choose(item.id)}
+                  className="flex-col items-start gap-1"
+                >
+                  <div className="flex w-full items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">
+                      <Highlight text={item.title} terms={terms} />
+                    </span>
+                    {item.sectionName && (
+                      <span className="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-400">
+                        <Highlight text={item.sectionName} terms={terms} />
+                      </span>
+                    )}
+                    {item.labels.slice(0, 3).map((l) => (
+                      <span
+                        key={l}
+                        style={labelColor(l)}
+                        className="shrink-0 rounded-full border px-1.5 text-[10px] font-medium"
+                      >
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                  {snip && (
+                    <span className="line-clamp-1 text-xs text-zinc-500">
+                      <Highlight text={snip} terms={terms} />
                     </span>
                   )}
-                  {item.labels.slice(0, 3).map((l) => (
-                    <span
-                      key={l}
-                      style={labelColor(l)}
-                      className="shrink-0 rounded-full border px-1.5 text-[10px] font-medium"
-                    >
-                      {l}
-                    </span>
-                  ))}
-                </div>
-                {snip && (
-                  <span className="line-clamp-1 text-xs text-zinc-500">
-                    <Highlight text={snip} terms={terms} />
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                </CommandItem>
+              );
+            })}
+          </CommandGroup>
+        </CommandList>
 
         <div className="flex items-center gap-3 border-t border-white/10 px-4 py-2 text-[11px] text-zinc-600">
           <span>
@@ -281,7 +232,7 @@ export default function SearchModal({
           </span>
           <span className="ml-auto">{results.length} 件</span>
         </div>
-      </div>
-    </div>
+      </Command>
+    </CommandDialog>
   );
 }
