@@ -263,38 +263,56 @@ export async function GET(req: Request) {
     );
     const puuid = acc.puuid;
 
-    // --- 一覧モード：直近 N 試合のサマリ（キャッシュ済みはAPIを叩かない） ---
+    // --- 一覧モード：直近 N 試合のサマリ（ノーマル＋ランクのみ・キャッシュ優先） ---
     if (list) {
-      const ids = await riot<string[]>(
-        `/lol/match/v5/matches/by-puuid/${puuid}/ids?count=${count}`,
-        key,
-      );
+      // ノーマル/ランクだけを許可（450=ARAM, 1700=アリーナ, 700=クラッシュ等は除外）
+      const ALLOWED = new Set([400, 420, 430, 440, 490]);
+      // type で API 側から事前に絞る（ranked と normal を別々に取得してマージ）
+      const [rankedIds, normalIds] = await Promise.all([
+        riot<string[]>(
+          `/lol/match/v5/matches/by-puuid/${puuid}/ids?type=ranked&count=${count}`,
+          key,
+        ),
+        riot<string[]>(
+          `/lol/match/v5/matches/by-puuid/${puuid}/ids?type=normal&count=${count}`,
+          key,
+        ),
+      ]);
+      // matchId 末尾の連番は時刻とほぼ単調なので、それで新しい順に並べて上位 count 件だけ詳細取得
+      const num = (id: string) => Number(id.split("_")[1] ?? 0);
+      const ids = [...new Set([...rankedIds, ...normalIds])]
+        .sort((a, b) => num(b) - num(a))
+        .slice(0, count);
+
       const matches: MatchSummary[] = [];
       for (const id of ids) {
         const cached = await getCached(id);
+        let s: MatchSummary;
         if (cached) {
           const me = cached.participants.find((p) => p.puuid === puuid);
-          matches.push({
+          s = {
             matchId: id,
             champ: me?.championName ?? "",
             win: !!me?.win,
             queueId: cached.queueId,
             gameStart: cached.gameStart,
             duration: cached.durationSec,
-          });
+          };
         } else {
           const m = await riot<MatchDto>(`/lol/match/v5/matches/${id}`, key);
           const me = m.info.participants.find((p) => p.puuid === puuid);
-          matches.push({
+          s = {
             matchId: id,
             champ: me?.championName ?? "",
             win: !!me?.win,
             queueId: m.info.queueId,
             gameStart: m.info.gameStartTimestamp,
             duration: m.info.gameDuration,
-          });
+          };
         }
+        if (ALLOWED.has(s.queueId)) matches.push(s);
       }
+      matches.sort((a, b) => b.gameStart - a.gameStart);
       return NextResponse.json({ puuid, matches });
     }
 
