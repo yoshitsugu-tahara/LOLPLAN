@@ -13,6 +13,7 @@ import {
   updateNote,
 } from "@/server/actions/notes";
 import { OPEN_MAP_EVENT } from "./blocks/MapBlock";
+import { useConfirm } from "./ConfirmDialog";
 import LabelEditor from "./LabelEditor";
 import NoteSidebar from "./NoteSidebar";
 import NotesDatabase from "./NotesDatabase";
@@ -36,6 +37,7 @@ export default function AppShell() {
   // タイトル入力はローカルstateで持つ（DB(liveQuery)を value にすると
   // 日本語IMEの変換中に値が裏で書き換わって文字化け・増殖する）
   const [titleDraft, setTitleDraft] = useState("");
+  const confirm = useConfirm();
 
   useEffect(() => {
     setMounted(true);
@@ -145,7 +147,12 @@ export default function AppShell() {
   };
 
   const deleteNote = async (id: string) => {
-    if (!confirm("このノートを削除しますか？")) return;
+    const ok = await confirm({
+      title: "このノートを削除しますか？",
+      actionLabel: "削除",
+      destructive: true,
+    });
+    if (!ok) return;
     // 先に消す（楽観的）→ 裏で削除
     patchNotes((cur) => cur.filter((n) => n.id !== id));
     if (selectedId === id) setSelectedId(null);

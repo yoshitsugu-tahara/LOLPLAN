@@ -1,9 +1,25 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import {
+  ArrowUpRight,
+  FileText,
+  PanelLeftClose,
+  Plus,
+  Search,
+  Settings,
+  Table2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   patchNotes,
   reloadNotes,
@@ -19,14 +35,13 @@ import {
   deleteSection as deleteSectionAction,
   renameSection,
 } from "@/server/actions/sections";
+import { useConfirm } from "./ConfirmDialog";
 import { labelColor } from "./LabelEditor";
 import { SidebarSkeleton } from "./Skeleton";
 import TemplateModal from "./TemplateModal";
 
 const NOTE_MIME = "application/x-lolnote-note";
 
-type MenuItem = { label: string; onClick: () => void; danger?: boolean };
-type MenuState = { x: number; y: number; items: MenuItem[] } | null;
 type DropTarget = { id: string; pos: "before" | "after" | "into" } | null;
 
 function byOrder(a: Note, b: Note) {
@@ -71,66 +86,6 @@ function applyMove(
   });
 }
 
-function PageIcon() {
-  return (
-    <svg
-      width="15"
-      height="15"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0 text-zinc-500"
-    >
-      <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-      <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-    </svg>
-  );
-}
-
-function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
-  useEffect(() => {
-    if (!menu) return;
-    const close = () => onClose();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("click", close);
-    window.addEventListener("contextmenu", close);
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("click", close);
-      window.removeEventListener("contextmenu", close);
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [menu, onClose]);
-
-  if (!menu) return null;
-  return (
-    <div
-      className="fixed z-50 min-w-44 overflow-hidden rounded-lg border border-white/10 bg-zinc-800 py-1 shadow-xl"
-      style={{ left: menu.x, top: menu.y }}
-      onClick={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      {menu.items.map((it, i) => (
-        <button
-          key={i}
-          onClick={() => {
-            it.onClick();
-            onClose();
-          }}
-          className={`flex w-full items-center px-3 py-1.5 text-left text-sm transition hover:bg-white/10 ${
-            it.danger ? "text-red-400" : "text-zinc-200"
-          }`}
-        >
-          {it.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export default function NoteSidebar({
   selectedId,
   onSelect,
@@ -154,8 +109,8 @@ export default function NoteSidebar({
   const { data: sections } = useSections();
   const { data: session } = useSession();
   const { data: coachUrl } = useSetting("coachUrl");
+  const confirm = useConfirm();
   const user = session?.user;
-  const [menu, setMenu] = useState<MenuState>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [templateSec, setTemplateSec] = useState<{
     id: string;
@@ -202,8 +157,13 @@ export default function NoteSidebar({
     setRenaming(id);
   };
   const deleteSection = async (id: string) => {
-    if (!confirm("このセクションを削除しますか？（中のノートは未分類に戻ります）"))
-      return;
+    const ok = await confirm({
+      title: "このセクションを削除しますか？",
+      description: "中のノートは未分類に戻ります。",
+      actionLabel: "削除",
+      destructive: true,
+    });
+    if (!ok) return;
     await deleteSectionAction(id);
     await Promise.all([reloadSections(), reloadNotes()]);
   };
@@ -256,83 +216,76 @@ export default function NoteSidebar({
           : "border-b-2 border-sky-500"
         : "border-y-2 border-transparent";
     return (
-      <div
-        key={n.id}
-        draggable
-        onDragStart={(e) => e.dataTransfer.setData(NOTE_MIME, n.id)}
-        onDragEnd={() => setDropTarget(null)}
-        onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes(NOTE_MIME)) return;
-          e.preventDefault();
-          const rect = e.currentTarget.getBoundingClientRect();
-          const before = e.clientY < rect.top + rect.height / 2;
-          setDropTarget({ id: n.id, pos: before ? "before" : "after" });
-        }}
-        onDrop={(e) => handleDropOnNote(e, n)}
-        onClick={() => onSelect(n.id)}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setMenu({
-            x: e.clientX,
-            y: e.clientY,
-            items: [
-              { label: "削除", danger: true, onClick: () => onDeleteNote(n.id) },
-            ],
-          });
-        }}
-        className={`group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition ${indicator} ${
-          n.id === selectedId
-            ? "bg-white/10 text-white"
-            : "text-zinc-300 hover:bg-white/5"
-        }`}
-      >
-        <PageIcon />
-        <span className="min-w-0 flex-1 truncate text-sm">
-          {n.title || "無題のノート"}
-        </span>
-        {!!(n.labels && n.labels.length) && (
-          <span className="flex shrink-0 items-center gap-0.5">
-            {n.labels.slice(0, 3).map((l) => (
-              <span
-                key={l}
-                title={l}
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: labelColor(l).borderColor }}
-              />
-            ))}
-          </span>
-        )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDeleteNote(n.id);
-          }}
-          className="shrink-0 text-zinc-500 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
-          title="削除"
+      <ContextMenu key={n.id}>
+        <ContextMenuTrigger
+          render={
+            <div
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData(NOTE_MIME, n.id)}
+              onDragEnd={() => setDropTarget(null)}
+              onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes(NOTE_MIME)) return;
+                e.preventDefault();
+                const rect = e.currentTarget.getBoundingClientRect();
+                const before = e.clientY < rect.top + rect.height / 2;
+                setDropTarget({ id: n.id, pos: before ? "before" : "after" });
+              }}
+              onDrop={(e) => handleDropOnNote(e, n)}
+              onClick={() => onSelect(n.id)}
+              className={`group flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 transition ${indicator} ${
+                n.id === selectedId
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-300 hover:bg-white/5"
+              }`}
+            />
+          }
         >
-          ✕
-        </button>
-      </div>
+          <FileText className="size-[15px] shrink-0 text-zinc-500" />
+          <span className="min-w-0 flex-1 truncate text-sm">
+            {n.title || "無題のノート"}
+          </span>
+          {!!(n.labels && n.labels.length) && (
+            <span className="flex shrink-0 items-center gap-0.5">
+              {n.labels.slice(0, 3).map((l) => (
+                <span
+                  key={l}
+                  title={l}
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: labelColor(l).borderColor }}
+                />
+              ))}
+            </span>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteNote(n.id);
+            }}
+            className="shrink-0 text-zinc-500 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
+            title="削除"
+          >
+            <X className="size-3.5" />
+          </button>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            variant="destructive"
+            onClick={() => onDeleteNote(n.id)}
+          >
+            <X /> 削除
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     );
   };
 
   return (
-    <aside
-      className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900"
-      // サイドバー内の右クリックはブラウザ標準メニューを無効化。
-      // ノート/セクションは各自のメニューを stopPropagation で優先し、
-      // それ以外の余白では「セクションを作成」を出す。
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setMenu({
-          x: e.clientX,
-          y: e.clientY,
-          items: [{ label: "＋ セクションを作成", onClick: createSection }],
-        });
-      }}
-    >
+    <ContextMenu>
+      <ContextMenuTrigger
+        render={
+          <aside className="flex w-64 shrink-0 flex-col border-r border-white/10 bg-zinc-900" />
+        }
+      >
       <div className="flex items-center justify-between px-4 py-3">
         <span className="text-base font-bold tracking-tight text-white">
           lolnote
@@ -341,29 +294,16 @@ export default function NoteSidebar({
           <button
             onClick={() => onCreateNote()}
             title="新規ノート"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-lg text-zinc-400 transition hover:bg-white/10 hover:text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/10 hover:text-white"
           >
-            ＋
+            <Plus className="size-[18px]" />
           </button>
           <button
             onClick={onToggleSidebar}
             title="サイドバーを隠す"
             className="flex h-7 w-7 items-center justify-center rounded-md text-zinc-400 transition hover:bg-white/10 hover:text-white"
           >
-            <svg
-              width="17"
-              height="17"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M9 3v18" />
-              <path d="m16 15-3-3 3-3" />
-            </svg>
+            <PanelLeftClose className="size-[17px]" />
           </button>
         </div>
       </div>
@@ -372,19 +312,7 @@ export default function NoteSidebar({
         onClick={onOpenSearch}
         className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-400 transition hover:bg-white/5 hover:text-white"
       >
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          className="shrink-0"
-        >
-          <circle cx="11" cy="11" r="7" />
-          <path d="m21 21-4.3-4.3" />
-        </svg>
+        <Search className="size-[15px] shrink-0" />
         <span className="flex-1 text-left">ノート検索</span>
         <kbd className="rounded bg-white/10 px-1 text-[10px] text-zinc-500">
           Ctrl ⇧ F
@@ -395,20 +323,7 @@ export default function NoteSidebar({
         onClick={onOpenDatabase}
         className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
       >
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="shrink-0"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <path d="M3 9h18M3 15h18M9 3v18" />
-        </svg>
+        <Table2 className="size-[15px] shrink-0" />
         <span>すべてのノート</span>
       </button>
 
@@ -436,19 +351,7 @@ export default function NoteSidebar({
         className="mx-2 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-zinc-300 transition hover:bg-white/5 hover:text-white"
       >
         🧠 <span className="flex-1 text-left">コーチと話す</span>
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="shrink-0 text-zinc-600"
-        >
-          <path d="M7 17 17 7M9 7h8v8" />
-        </svg>
+        <ArrowUpRight className="size-[13px] shrink-0 text-zinc-600" />
       </button>
 
       {/* ラベル絞り込み */}
@@ -474,7 +377,7 @@ export default function NoteSidebar({
         </div>
       )}
 
-      {/* ノート＋セクション。余白の右クリック（aside側）でセクション作成 */}
+      {/* ノート＋セクション。余白の右クリックでセクション作成 */}
       <div
         className="no-scrollbar mt-2 flex-1 overflow-y-auto px-2 pb-4"
         onDragOver={(e) =>
@@ -484,104 +387,109 @@ export default function NoteSidebar({
       >
         {loading && <SidebarSkeleton />}
 
-        {/* 未分類 */}
-        {!loading && (
-          <div className="group/sec mb-1 flex items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
-            <span className="flex-1">ノート</span>
-            <button
-              onClick={() => onCreateNote(null)}
-              title="ノートをここに追加"
-              className="flex h-4 w-4 items-center justify-center rounded text-sm leading-none text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
-            >
-              ＋
-            </button>
-          </div>
-        )}
-        {uncategorized.map(renderNote)}
+          {/* 未分類 */}
+          {!loading && (
+            <div className="group/sec mb-1 flex items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-600">
+              <span className="flex-1">ノート</span>
+              <button
+                onClick={() => onCreateNote(null)}
+                title="ノートをここに追加"
+                className="flex h-4 w-4 items-center justify-center rounded text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
+              >
+                <Plus className="size-3" />
+              </button>
+            </div>
+          )}
+          {uncategorized.map(renderNote)}
 
-        {/* セクション（絞り込み中は該当ノートが無いセクションは隠す） */}
-        {(sections ?? []).map((sec) => {
-          const secNotes = notesOf(sec.id);
-          if (filter.length && secNotes.length === 0) return null;
-          return (
-          <div key={sec.id} className="mt-3">
-            <div
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  items: [
-                    { label: "名前を変更", onClick: () => setRenaming(sec.id) },
-                    {
-                      label: "タイトルテンプレート",
-                      onClick: () =>
+          {/* セクション（絞り込み中は該当ノートが無いセクションは隠す） */}
+          {(sections ?? []).map((sec) => {
+            const secNotes = notesOf(sec.id);
+            if (filter.length && secNotes.length === 0) return null;
+            return (
+              <div key={sec.id} className="mt-3">
+                <ContextMenu>
+                  <ContextMenuTrigger
+                    render={
+                      <div
+                        onDragOver={(e) => {
+                          if (!e.dataTransfer.types.includes(NOTE_MIME)) return;
+                          e.preventDefault();
+                          setDropTarget({ id: `sec-${sec.id}`, pos: "into" });
+                        }}
+                        onDrop={(e) => dropInto(e, sec.id)}
+                        className={`group/sec mb-1 flex items-center gap-1 rounded px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 ${
+                          dropTarget?.id === `sec-${sec.id}`
+                            ? "bg-sky-500/20"
+                            : ""
+                        }`}
+                      />
+                    }
+                  >
+                    {renaming === sec.id ? (
+                      <input
+                        autoFocus
+                        defaultValue={sec.name}
+                        onFocus={(e) => e.target.select()}
+                        onBlur={(e) => {
+                          const name = e.target.value.trim() || "セクション";
+                          renameSection(sec.id, name).then(reloadSections);
+                          setRenaming(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") e.currentTarget.blur();
+                          if (e.key === "Escape") setRenaming(null);
+                        }}
+                        className="w-full bg-transparent py-1 uppercase text-white outline-none"
+                      />
+                    ) : (
+                      <>
+                        <span
+                          className="flex-1 cursor-default py-1"
+                          onDoubleClick={() => setRenaming(sec.id)}
+                        >
+                          {sec.name}
+                        </span>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCreateNote(sec.id);
+                          }}
+                          title="ノートをここに追加"
+                          className="flex h-4 w-4 items-center justify-center rounded text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
+                        >
+                          <Plus className="size-3" />
+                        </button>
+                      </>
+                    )}
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem onClick={() => setRenaming(sec.id)}>
+                      名前を変更
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      onClick={() =>
                         setTemplateSec({
                           id: sec.id,
                           name: sec.name,
                           template: sec.titleTemplate ?? "",
-                        }),
-                    },
-                    {
-                      label: "セクションを削除",
-                      danger: true,
-                      onClick: () => deleteSection(sec.id),
-                    },
-                  ],
-                });
-              }}
-              onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes(NOTE_MIME)) return;
-                e.preventDefault();
-                setDropTarget({ id: `sec-${sec.id}`, pos: "into" });
-              }}
-              onDrop={(e) => dropInto(e, sec.id)}
-              className={`group/sec mb-1 flex items-center gap-1 rounded px-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 ${
-                dropTarget?.id === `sec-${sec.id}` ? "bg-sky-500/20" : ""
-              }`}
-            >
-              {renaming === sec.id ? (
-                <input
-                  autoFocus
-                  defaultValue={sec.name}
-                  onFocus={(e) => e.target.select()}
-                  onBlur={(e) => {
-                    const name = e.target.value.trim() || "セクション";
-                    renameSection(sec.id, name).then(reloadSections);
-                    setRenaming(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") e.currentTarget.blur();
-                    if (e.key === "Escape") setRenaming(null);
-                  }}
-                  className="w-full bg-transparent py-1 uppercase text-white outline-none"
-                />
-              ) : (
-                <>
-                  <span
-                    className="flex-1 cursor-default py-1"
-                    onDoubleClick={() => setRenaming(sec.id)}
-                  >
-                    {sec.name}
-                  </span>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCreateNote(sec.id);
-                    }}
-                    title="ノートをここに追加"
-                    className="flex h-4 w-4 items-center justify-center rounded text-sm leading-none text-zinc-500 opacity-0 transition hover:bg-white/10 hover:text-white group-hover/sec:opacity-100"
-                  >
-                    ＋
-                  </button>
-                </>
-              )}
-            </div>
-            {secNotes.map(renderNote)}
-          </div>
-          );
-        })}
+                        })
+                      }
+                    >
+                      タイトルテンプレート
+                    </ContextMenuItem>
+                    <ContextMenuItem
+                      variant="destructive"
+                      onClick={() => deleteSection(sec.id)}
+                    >
+                      セクションを削除
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+                {secNotes.map(renderNote)}
+              </div>
+            );
+          })}
       </div>
 
       {/* 最下部のアカウント（クリックで設定へ） */}
@@ -609,23 +517,8 @@ export default function NoteSidebar({
             {user?.email ?? ""}
           </div>
         </div>
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="shrink-0 text-zinc-500"
-        >
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
+        <Settings className="size-[15px] shrink-0 text-zinc-500" />
       </Link>
-
-      <ContextMenu menu={menu} onClose={() => setMenu(null)} />
 
       {templateSec && (
         <TemplateModal
@@ -635,6 +528,12 @@ export default function NoteSidebar({
           onClose={() => setTemplateSec(null)}
         />
       )}
-    </aside>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={createSection}>
+          <Plus /> セクションを作成
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
