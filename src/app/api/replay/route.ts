@@ -12,6 +12,7 @@ import {
 } from "@/server/db/schema";
 import {
   gameToRel,
+  type ItemEvent,
   type MatchSummary,
   type RankInfo,
   type ReplayData,
@@ -57,6 +58,8 @@ interface MatchParticipant {
   goldEarned: number;
   totalDamageDealtToChampions: number;
   visionScore: number;
+  wardsPlaced: number;
+  wardsKilled: number;
   item0: number;
   item1: number;
   item2: number;
@@ -92,10 +95,19 @@ interface TLEvent {
   timestamp: number;
   position?: TLPos;
   monsterType?: string;
+  monsterSubType?: string;
   buildingType?: string;
+  towerType?: string;
   laneType?: string;
   killerId?: number;
+  killerTeamId?: number;
   victimId?: number;
+  teamId?: number;
+  assistingParticipantIds?: number[];
+  name?: string; // DRAGON_SOUL_GIVEN の属性名
+  participantId?: number; // ITEM_* / SKILL_LEVEL_UP
+  itemId?: number;
+  skillSlot?: number;
 }
 interface TLFrame {
   timestamp: number;
@@ -212,6 +224,33 @@ async function fetchAndCache(
     riot<TimelineDto>(`/lol/match/v5/matches/${matchId}/timeline`, key),
   ]);
 
+  // タイムラインから購入/スキル上げを参加者ごとに集める
+  const purchases: Record<number, ItemEvent[]> = {};
+  const skills: Record<number, number[]> = {};
+  for (const f of timeline.info.frames) {
+    for (const e of f.events) {
+      if (e.participantId == null) continue;
+      if (e.type === "ITEM_PURCHASED" && e.itemId) {
+        (purchases[e.participantId] ??= []).push({
+          ms: e.timestamp,
+          itemId: e.itemId,
+          kind: "PURCHASED",
+        });
+      } else if (
+        (e.type === "ITEM_SOLD" || e.type === "ITEM_UNDO") &&
+        e.itemId
+      ) {
+        (purchases[e.participantId] ??= []).push({
+          ms: e.timestamp,
+          itemId: e.itemId,
+          kind: e.type === "ITEM_SOLD" ? "SOLD" : "UNDO",
+        });
+      } else if (e.type === "SKILL_LEVEL_UP" && e.skillSlot) {
+        (skills[e.participantId] ??= []).push(e.skillSlot);
+      }
+    }
+  }
+
   const participants: ReplayParticipant[] = match.info.participants.map((p) => ({
     participantId: p.participantId,
     puuid: p.puuid,
@@ -228,6 +267,8 @@ async function fetchAndCache(
     gold: p.goldEarned,
     dmgToChamps: p.totalDamageDealtToChampions,
     visionScore: p.visionScore,
+    wardsPlaced: p.wardsPlaced ?? 0,
+    wardsKilled: p.wardsKilled ?? 0,
     items: [p.item0, p.item1, p.item2, p.item3, p.item4, p.item5, p.item6],
     spell1: p.summoner1Id,
     spell2: p.summoner2Id,
@@ -238,6 +279,8 @@ async function fetchAndCache(
           60
         : 0,
     killParticipation: p.challenges?.killParticipation ?? 0,
+    purchases: purchases[p.participantId] ?? [],
+    skillOrder: skills[p.participantId] ?? [],
   }));
 
   const frames: ReplayFrame[] = timeline.info.frames.map((f) => {
@@ -258,28 +301,34 @@ async function fetchAndCache(
     };
   });
 
+  const EVENT_TYPES = new Set([
+    "CHAMPION_KILL",
+    "ELITE_MONSTER_KILL",
+    "BUILDING_KILL",
+    "TURRET_PLATE_DESTROYED",
+    "DRAGON_SOUL_GIVEN",
+  ]);
   const events: ReplayEvent[] = [];
   for (const f of timeline.info.frames) {
     for (const e of f.events) {
-      if (
-        (e.type === "CHAMPION_KILL" ||
-          e.type === "ELITE_MONSTER_KILL" ||
-          e.type === "BUILDING_KILL") &&
-        e.position
-      ) {
-        const { rx, ry } = gameToRel(e.position.x, e.position.y);
-        events.push({
-          ms: e.timestamp,
-          type: e.type,
-          rx,
-          ry,
-          killerId: e.killerId,
-          victimId: e.victimId,
-          monsterType: e.monsterType,
-          buildingType: e.buildingType,
-          laneType: e.laneType,
-        });
-      }
+      if (!EVENT_TYPES.has(e.type)) continue;
+      const pos = e.position ? gameToRel(e.position.x, e.position.y) : null;
+      events.push({
+        ms: e.timestamp,
+        type: e.type,
+        rx: pos?.rx ?? 0,
+        ry: pos?.ry ?? 0,
+        killerId: e.killerId,
+        victimId: e.victimId,
+        assistIds: e.assistingParticipantIds,
+        teamId: e.teamId ?? e.killerTeamId,
+        monsterType: e.monsterType,
+        monsterSubType: e.monsterSubType,
+        buildingType: e.buildingType,
+        towerType: e.towerType,
+        laneType: e.laneType,
+        soulName: e.name,
+      });
     }
   }
 

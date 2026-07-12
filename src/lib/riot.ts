@@ -16,7 +16,14 @@ export function gameToRel(gx: number, gy: number): { rx: number; ry: number } {
   return { rx: clamp(rx), ry: clamp(ry) };
 }
 
-/** 参加者の最終戦績（match エンドポイント由来） */
+/** アイテム売買イベント（時間対応ビルド用） */
+export interface ItemEvent {
+  ms: number;
+  itemId: number;
+  kind: "PURCHASED" | "SOLD" | "UNDO";
+}
+
+/** 参加者の最終戦績（match エンドポイント由来）＋時系列の購入/スキル */
 export interface ReplayParticipant {
   participantId: number; // 1..10
   puuid: string;
@@ -33,11 +40,15 @@ export interface ReplayParticipant {
   gold: number;
   dmgToChamps: number;
   visionScore: number;
+  wardsPlaced: number;
+  wardsKilled: number;
   items: number[]; // item0..item6（0 は空）
   spell1: number;
   spell2: number;
   csPerMin: number;
   killParticipation: number; // 0..1
+  purchases: ItemEvent[]; // 時系列のアイテム売買
+  skillOrder: number[]; // スキル上げ順（1=Q,2=W,3=E,4=R）
 }
 
 export interface ReplayPos {
@@ -63,14 +74,21 @@ export interface ReplayFrame {
 
 export interface ReplayEvent {
   ms: number;
-  type: string; // CHAMPION_KILL / ELITE_MONSTER_KILL / BUILDING_KILL
+  // CHAMPION_KILL / ELITE_MONSTER_KILL / BUILDING_KILL / TURRET_PLATE_DESTROYED
+  // / DRAGON_SOUL_GIVEN
+  type: string;
   rx: number;
   ry: number;
   killerId?: number;
   victimId?: number;
+  assistIds?: number[];
+  teamId?: number; // BUILDING/PLATE: 建物側チーム / SOUL: 取得チーム / MONSTER: 取得チーム
   monsterType?: string; // DRAGON / BARON_NASHOR / RIFTHERALD / HORDE
+  monsterSubType?: string; // FIRE_DRAGON / ELDER_DRAGON など
   buildingType?: string; // TOWER_BUILDING / INHIBITOR_BUILDING
-  laneType?: string;
+  towerType?: string; // OUTER_TURRET / INNER_TURRET / BASE_TURRET / NEXUS_TURRET
+  laneType?: string; // TOP_LANE / MID_LANE / BOT_LANE
+  soulName?: string; // DRAGON_SOUL_GIVEN の属性名
 }
 
 export interface ReplayData {
@@ -167,6 +185,115 @@ export function tierColor(tier?: string | null): string {
     CHALLENGER: "#f5d76e",
   };
   return (tier && m[tier]) || "#71717a";
+}
+
+// ───────── ◯分時点の状態復元（イベントを畳む） ─────────
+
+export const BARON_BUFF_MS = 180000; // バロン 3分
+export const ELDER_BUFF_MS = 150000; // エルダー 2.5分
+
+export interface TeamObjective {
+  dragons: string[]; // 属性リスト（取得順）
+  heralds: number;
+  grubs: number;
+  barons: number;
+  soul: string | null;
+  baronActiveUntil: number | null;
+  elderActiveUntil: number | null;
+}
+export interface DownTower {
+  teamId: number;
+  lane: string;
+  tower: string;
+}
+export interface GameState {
+  towersDown: DownTower[];
+  platesDown: { teamId: number; lane: string }[];
+  team: Record<number, TeamObjective>;
+}
+
+const emptyObj = (): TeamObjective => ({
+  dragons: [],
+  heralds: 0,
+  grubs: 0,
+  barons: 0,
+  soul: null,
+  baronActiveUntil: null,
+  elderActiveUntil: null,
+});
+
+/** ドラゴンの属性を短い日本語に */
+export function dragonShort(subType?: string): string {
+  const m: Record<string, string> = {
+    FIRE_DRAGON: "火",
+    AIR_DRAGON: "風",
+    EARTH_DRAGON: "土",
+    WATER_DRAGON: "水",
+    HEXTECH_DRAGON: "H",
+    CHEMTECH_DRAGON: "C",
+    ELDER_DRAGON: "長老",
+  };
+  return (subType && m[subType]) || "竜";
+}
+
+/** ms 時点のタワー/オブジェクト状態をイベントから復元 */
+export function stateAt(data: ReplayData, ms: number): GameState {
+  const team: Record<number, TeamObjective> = { 100: emptyObj(), 200: emptyObj() };
+  const towersDown: DownTower[] = [];
+  const platesDown: { teamId: number; lane: string }[] = [];
+  const pTeam = new Map(data.participants.map((p) => [p.participantId, p.teamId]));
+  const takerTeam = (e: ReplayEvent) =>
+    e.teamId ?? (e.killerId != null ? pTeam.get(e.killerId) : undefined);
+
+  for (const e of data.events) {
+    if (e.ms > ms) continue;
+    if (e.type === "BUILDING_KILL" && e.teamId) {
+      towersDown.push({
+        teamId: e.teamId,
+        lane: e.laneType ?? "",
+        tower: e.towerType ?? e.buildingType ?? "",
+      });
+    } else if (e.type === "TURRET_PLATE_DESTROYED" && e.teamId) {
+      platesDown.push({ teamId: e.teamId, lane: e.laneType ?? "" });
+    } else if (e.type === "DRAGON_SOUL_GIVEN" && e.teamId) {
+      team[e.teamId].soul = e.soulName ?? "ソウル";
+    } else if (e.type === "ELITE_MONSTER_KILL") {
+      const t = takerTeam(e);
+      if (t !== 100 && t !== 200) continue;
+      if (e.monsterType === "DRAGON") {
+        if (e.monsterSubType === "ELDER_DRAGON")
+          team[t].elderActiveUntil = e.ms + ELDER_BUFF_MS;
+        else team[t].dragons.push(dragonShort(e.monsterSubType));
+      } else if (e.monsterType === "BARON_NASHOR") {
+        team[t].barons += 1;
+        team[t].baronActiveUntil = e.ms + BARON_BUFF_MS;
+      } else if (e.monsterType === "RIFTHERALD") team[t].heralds += 1;
+      else if (e.monsterType === "HORDE") team[t].grubs += 1;
+    }
+  }
+  // バフ有効切れの後処理
+  for (const t of [100, 200]) {
+    if (team[t].baronActiveUntil && team[t].baronActiveUntil <= ms)
+      team[t].baronActiveUntil = null;
+    if (team[t].elderActiveUntil && team[t].elderActiveUntil <= ms)
+      team[t].elderActiveUntil = null;
+  }
+  return { towersDown, platesDown, team };
+}
+
+/** ms 時点で所持しているアイテム（購入/売却/UNDOを畳む） */
+export function itemsAt(purchases: ItemEvent[] | undefined, ms: number): number[] {
+  const owned: number[] = [];
+  for (const e of purchases ?? []) {
+    if (e.ms > ms) break;
+    if (e.kind === "PURCHASED") owned.push(e.itemId);
+    else if (e.kind === "SOLD" || e.kind === "UNDO") {
+      const i = owned.lastIndexOf(e.itemId);
+      if (i >= 0) owned.splice(i, 1);
+    }
+  }
+  // 末尾優先で最大6個＋トリンケット相当は無視（雑に直近6個）
+  return owned.slice(-6);
 }
 
 /** キューID → 表示名（主要なものだけ） */

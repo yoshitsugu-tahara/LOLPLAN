@@ -11,15 +11,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSetting } from "@/lib/store";
 import {
+  dragonShort,
+  itemsAt,
   opponentOf,
   queueName,
   rankLabel,
+  stateAt,
   tierColor,
+  type GameState,
   type MatchSummary,
   type RankInfo,
   type ReplayData,
   type ReplayParticipant,
   type ReplayStat,
+  type TeamObjective,
 } from "@/lib/riot";
 
 function fmtDate(ts: number) {
@@ -275,6 +280,220 @@ function Scoreboard({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function fmtClock(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function ItemRow({ ids, version }: { ids: number[]; version?: string }) {
+  return (
+    <div className="flex gap-0.5">
+      {Array.from({ length: 6 }).map((_, i) => {
+        const src = itemIcon(version, ids[i] ?? 0);
+        return src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={i} src={src} alt="" className="h-5 w-5 rounded-sm" />
+        ) : (
+          <span key={i} className="h-5 w-5 rounded-sm bg-white/5" />
+        );
+      })}
+    </div>
+  );
+}
+
+const LANES = [
+  ["TOP_LANE", "TOP"],
+  ["MID_LANE", "MID"],
+  ["BOT_LANE", "BOT"],
+] as const;
+const TIERS = ["OUTER_TURRET", "INNER_TURRET", "BASE_TURRET"] as const;
+
+function TeamTowers({ state, teamId }: { state: GameState; teamId: number }) {
+  const up = teamId === 100 ? "bg-sky-400" : "bg-red-400";
+  const isDown = (lane: string, tier: string) =>
+    state.towersDown.some(
+      (t) => t.teamId === teamId && t.lane === lane && t.tower === tier,
+    );
+  const nexusDown = state.towersDown.filter(
+    (t) => t.teamId === teamId && t.tower === "NEXUS_TURRET",
+  ).length;
+  return (
+    <div className="space-y-0.5">
+      {LANES.map(([lane, ll]) => (
+        <div key={lane} className="flex items-center gap-1">
+          <span className="w-8 text-[10px] text-zinc-600">{ll}</span>
+          {TIERS.map((tier) => (
+            <span
+              key={tier}
+              className={`h-2.5 w-2.5 rounded-full ${isDown(lane, tier) ? "bg-white/10" : up}`}
+            />
+          ))}
+        </div>
+      ))}
+      <div className="flex items-center gap-1">
+        <span className="w-8 text-[10px] text-zinc-600">Nex</span>
+        {[0, 1].map((i) => (
+          <span
+            key={i}
+            className={`h-2.5 w-2.5 rounded-full ${i < 2 - nexusDown ? up : "bg-white/10"}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TeamObjectives({ obj, ms }: { obj: TeamObjective; ms: number }) {
+  return (
+    <div className="mt-1.5 space-y-0.5 text-[11px] text-zinc-400">
+      <div>
+        🐉 {obj.dragons.length ? obj.dragons.join(" ") : "—"}
+        {obj.soul ? (
+          <span className="text-amber-300"> ✨{obj.soul}</span>
+        ) : null}
+      </div>
+      {obj.baronActiveUntil && (
+        <div className="text-purple-300">
+          バロン残 {fmtClock(obj.baronActiveUntil - ms)}
+        </div>
+      )}
+      {obj.elderActiveUntil && (
+        <div className="text-amber-300">
+          エルダー残 {fmtClock(obj.elderActiveUntil - ms)}
+        </div>
+      )}
+      <div className="text-zinc-500">
+        ヘラルド{obj.heralds}・グラブ{obj.grubs}
+      </div>
+    </div>
+  );
+}
+
+function StatePanel({
+  data,
+  ms,
+  me,
+  version,
+}: {
+  data: ReplayData;
+  ms: number;
+  me: ReplayParticipant | null;
+  version?: string;
+}) {
+  const state = stateAt(data, ms);
+  const opp = me ? opponentOf(me, data.participants) : undefined;
+  return (
+    <div className="rounded-lg border border-white/10 bg-zinc-900 p-3">
+      <div className="mb-2 text-xs font-semibold text-zinc-300">
+        この時点の状況
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[100, 200].map((team) => (
+          <div key={team}>
+            <div
+              className={`mb-1 text-[11px] font-bold ${team === 100 ? "text-sky-400" : "text-red-400"}`}
+            >
+              {team === 100 ? "ブルー" : "レッド"}
+            </div>
+            <TeamTowers state={state} teamId={team} />
+            <TeamObjectives obj={state.team[team]} ms={ms} />
+          </div>
+        ))}
+      </div>
+      {me && opp && (
+        <div className="mt-3 space-y-1 border-t border-white/10 pt-2">
+          <div className="flex items-center justify-between gap-2 text-[11px]">
+            <span className="shrink-0 text-sky-300">自分</span>
+            <ItemRow ids={itemsAt(me.purchases, ms)} version={version} />
+          </div>
+          <div className="flex items-center justify-between gap-2 text-[11px]">
+            <span className="shrink-0 text-red-300">対面</span>
+            <ItemRow ids={itemsAt(opp.purchases, ms)} version={version} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventLog({
+  data,
+  partById,
+  minute,
+  onJump,
+}: {
+  data: ReplayData;
+  partById: Map<number, ReplayParticipant>;
+  minute: number;
+  onJump: (m: number) => void;
+}) {
+  const champ = (id?: number) =>
+    (id != null ? partById.get(id)?.championName : undefined) ?? "?";
+  const teamName = (t?: number) =>
+    t === 100 ? "ブルー" : t === 200 ? "レッド" : "?";
+  const rows = data.events
+    .filter((e) =>
+      [
+        "CHAMPION_KILL",
+        "ELITE_MONSTER_KILL",
+        "BUILDING_KILL",
+        "DRAGON_SOUL_GIVEN",
+      ].includes(e.type),
+    )
+    .map((e) => {
+      let icon = "";
+      let label = "";
+      if (e.type === "CHAMPION_KILL") {
+        icon = "⚔️";
+        label = `${champ(e.killerId)} → ${champ(e.victimId)}`;
+      } else if (e.type === "ELITE_MONSTER_KILL") {
+        const name =
+          e.monsterType === "DRAGON"
+            ? `ドラゴン(${dragonShort(e.monsterSubType)})`
+            : e.monsterType === "BARON_NASHOR"
+              ? "バロン"
+              : e.monsterType === "RIFTHERALD"
+                ? "ヘラルド"
+                : e.monsterType === "HORDE"
+                  ? "グラブ"
+                  : (e.monsterType ?? "モンスター");
+        icon = "🐉";
+        label = `${name} 討伐 (${teamName(e.teamId)})`;
+      } else if (e.type === "BUILDING_KILL") {
+        icon = "🏛️";
+        label = `${(e.laneType ?? "").replace("_LANE", "")} タワー破壊 (${teamName(e.teamId)}側)`;
+      } else {
+        icon = "✨";
+        label = `ドラゴンソウル (${teamName(e.teamId)})`;
+      }
+      return { ms: e.ms, icon, label, minute: Math.round(e.ms / 60000) };
+    });
+  return (
+    <div className="mt-4 rounded-xl border border-white/10 bg-zinc-900 p-3">
+      <div className="mb-2 text-sm font-semibold text-zinc-300">
+        イベントログ（クリックでその時間へ）
+      </div>
+      <div className="no-scrollbar max-h-72 space-y-0.5 overflow-y-auto">
+        {rows.map((r, i) => (
+          <button
+            key={i}
+            onClick={() => onJump(r.minute)}
+            className={`flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs transition hover:bg-white/5 ${
+              r.minute === minute ? "bg-white/10" : ""
+            }`}
+          >
+            <span className="w-10 shrink-0 tabular-nums text-zinc-500">
+              {fmtClock(r.ms)}
+            </span>
+            <span className="shrink-0">{r.icon}</span>
+            <span className="truncate text-zinc-300">{r.label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -621,6 +840,14 @@ export default function ReplayPoc() {
                     この試合にあなた（{riotId}）が見つからないため、リード差は表示できません。
                   </div>
                 )}
+
+                {/* ◯分時点の状況（タワー/オブジェクト/アイテム） */}
+                <StatePanel
+                  data={data}
+                  ms={frame?.ms ?? minute * 60000}
+                  me={me}
+                  version={version}
+                />
               </>
             )}
           </div>
@@ -633,6 +860,19 @@ export default function ReplayPoc() {
             mePid={me?.participantId ?? null}
             version={version}
             ranks={ranks}
+          />
+        )}
+
+        {/* ④ イベントログ */}
+        {data && (
+          <EventLog
+            data={data}
+            partById={partById}
+            minute={minute}
+            onJump={(m) => {
+              setPlaying(false);
+              setMinute(m);
+            }}
           />
         )}
       </main>
